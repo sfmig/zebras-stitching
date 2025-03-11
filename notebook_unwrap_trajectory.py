@@ -148,9 +148,8 @@ for rot_arr in rot_matrices_per_frame:
     accum_rot_matrices_per_frame.append(accum_rot_arr)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute tracklet coordinates in ICSO
+# Compute change of basis matrix:
 
-# change of basis matrix:
 # when applied from the left to a (column) vector,
 # it transforms its coordinates to express them in
 # a parallel coordinate system to the ICS but with
@@ -182,16 +181,17 @@ print(change_of_basis_to_centre @ np.array([0, 0, 1]))
 # in ICS
 print(np.linalg.inv(change_of_basis_to_centre) @ np.array([0, 0, 1]))
 
-# %%
-accum_trans_arr = np.eye(3)
+# %%%%%%%%%%%%%%%%%%%%%%%%%%
+# Compute tracklet coordinates in ICSO
+
+# accum_trans_arr = np.eye(3)
 list_tracklet_centroid_ICS0 = []
-for trans_arr, position_s0 in zip(
-    translation_arrays_per_frame,
+for accum_trans_arr, accum_rot_arr, position_s0 in zip(
+    accum_translation_arrays_per_frame,
+    accum_rot_matrices_per_frame,
     tracklet_centroid_ICS.values,
     strict=True,
 ):
-    accum_trans_arr = trans_arr @ accum_trans_arr
-
     # get position data in homog coords in ICS of current frame
     position_s0_homog = np.vstack([position_s0.reshape(-1, 1), 1.0])
 
@@ -231,10 +231,15 @@ blended_warped_img = np.zeros(output_shape + [3])
 for f_i, f in enumerate(list_frames_to_plot):
     img_warped = warp(
         video[f],
-        np.linalg.inv(accum_translation_arrays_per_frame[list_frames.index(f)]),
-        output_shape=output_shape,
-        # we do inverse because warp expects
+        np.linalg.inv(
+            np.linalg.inv(change_of_basis_to_centre)
+            @ accum_rot_matrices_per_frame[list_frames.index(f)]
+            @ accum_translation_arrays_per_frame[list_frames.index(f)]
+            @ change_of_basis_to_centre
+        ),
+        # we do inverse outside because skimage's warp expects
         # the transform from output image to input image
+        output_shape=output_shape,
     )
     blended_warped_img = np.maximum(blended_warped_img, img_warped)
 
