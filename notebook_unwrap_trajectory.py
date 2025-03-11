@@ -89,7 +89,13 @@ print(transforms_tracklet)
 # check as many transforms as frames in tracklet
 print(tracklet_centroid_ICS.shape)
 
-
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot accumulated rotated angle
+plt.figure()
+plt.plot(np.rad2deg(transforms_tracklet["theta"].cumsum()), "-o")
+plt.title("Rotation wrt ICS0-x-axis")
+plt.xlabel("frame")
+plt.ylabel("theta (deg)")
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Extract transform per frame in homogeneous coords
 # transforms are from frame f --> f+1
@@ -103,24 +109,26 @@ translation_arrays_per_frame = [
 translation_arrays_per_frame[0] = np.eye(3)
 
 # rotation matrices from f to f+1
+# with rotation axis = center of the image
 rot_matrices_per_frame = [
     np.array(
         [
-            [np.cos(theta), -np.sin(theta)],
-            [np.sin(theta), np.cos(theta)],
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta), 0],
+            [0, 0, 1],
         ]
     )
     for theta in transforms_tracklet["theta"].values
 ]
 
 # replace rotation matrix from f=1466 to f=1467 with identity
-rot_matrices_per_frame[0] = np.eye(2)
+rot_matrices_per_frame[0] = np.eye(3)
 
 print(len(translation_arrays_per_frame))
 print(len(rot_matrices_per_frame))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute transforms from reference frame f=0
+# Compute transforms from reference frame f=0 in homog coords
 
 # translation
 accum_translation_arrays_per_frame = []
@@ -132,10 +140,49 @@ for trans_arr in translation_arrays_per_frame:
 
 
 # rotation
+# multiply from the left
+accum_rot_matrices_per_frame = []
+accum_rot_arr = np.eye(3)
+for rot_arr in rot_matrices_per_frame:
+    accum_rot_arr = rot_arr @ accum_rot_arr
+    accum_rot_matrices_per_frame.append(accum_rot_arr)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute tracklet coordinates in ICSO
 
+# change of basis matrix:
+# when applied from the left to a (column) vector,
+# it transforms its coordinates to express them in
+# a parallel coordinate system to the ICS but with
+# its origin in the image centre
+vector_to_img_centre = np.array(tuple(s // 2 for s in frame_shape[:2]))
+change_of_basis_to_centre = np.vstack(
+    (
+        np.hstack(
+            [
+                np.eye(2),
+                np.array(-vector_to_img_centre).reshape(-1, 1),
+            ]
+        ),
+        np.array([0, 0, 1]),
+    )
+)
+
+# Note: a change of basis matrix is the "inverse" of the
+# corresponding rotation. So the application of this matrix
+# to a point can also be seen as translating the data such that
+# the image centre is at the origin of our ICS.
+
+# check the top-left corner in ICS is negative x and negative y in
+# ICS-centre
+# (we use homogeneous coords)
+print(change_of_basis_to_centre @ np.array([0, 0, 1]))
+
+# check the inverse transforms points in ICS-centre to points expressed
+# in ICS
+print(np.linalg.inv(change_of_basis_to_centre) @ np.array([0, 0, 1]))
+
+# %%
 accum_trans_arr = np.eye(3)
 list_tracklet_centroid_ICS0 = []
 for trans_arr, position_s0 in zip(
@@ -145,8 +192,24 @@ for trans_arr, position_s0 in zip(
 ):
     accum_trans_arr = trans_arr @ accum_trans_arr
 
+    # get position data in homog coords in ICS of current frame
     position_s0_homog = np.vstack([position_s0.reshape(-1, 1), 1.0])
-    position_s1_homog = accum_trans_arr @ position_s0_homog
+
+    # express position data in ICS-centre of current frame:
+    # coord system with origin in the center of the image
+    position_s0_homog_centre = change_of_basis_to_centre @ position_s0_homog
+
+    # apply rotation and translation in ICS-centre
+    # order? we assume translation first
+    position_s1_homog_centre = accum_rot_arr @ (
+        accum_trans_arr @ position_s0_homog_centre
+    )
+
+    # express the result back in ICS
+    # (i.e. coord system with origin in the top-left centre)
+    position_s1_homog = (
+        np.linalg.inv(change_of_basis_to_centre) @ position_s1_homog_centre
+    )
 
     list_tracklet_centroid_ICS0.append(position_s1_homog[:-1, :].T.squeeze())
 
@@ -176,30 +239,7 @@ for f_i, f in enumerate(list_frames_to_plot):
     blended_warped_img = np.maximum(blended_warped_img, img_warped)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot
-
-# ICS
-# fig, axs = plt.subplots(1, 2)
-# ax = axs[0]
-# im = ax.imshow(video[frame_start])
-# sc = ax.scatter(
-#     tracklet_centroid_ICS.sel(space="x"),
-#     tracklet_centroid_ICS.sel(space="y"),
-#     c=tracklet_centroid_ICS.time,
-#     cmap="viridis",
-#     s=10,
-# )
-# ax.set_xlim(875, 1075)
-# ax.set_ylim(660, 876)
-# ax.set_aspect("equal")
-# ax.invert_yaxis()
-# ax.set_xlabel("x (pixels)")
-# ax.set_ylabel("y (pixels)")
-# plt.colorbar(sc)
-
-# ax.set_title("Centroid - ICS")
-
-# ICS0
+# Plot  trajectory in ICS0
 # ax = axs
 fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
