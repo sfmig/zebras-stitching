@@ -222,7 +222,7 @@ tracklet_centroid_ICS0 = xr.DataArray(
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute blended image using one very n frames
-blend_step = 10
+blend_step = 1
 list_frames = list(range(frame_start, frame_end + 1))
 list_frames_to_plot = list_frames[0:-1:blend_step]
 
