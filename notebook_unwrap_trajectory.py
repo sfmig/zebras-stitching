@@ -13,9 +13,9 @@ from skimage.transform import warp
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
 
-file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/270Predictions_clean.analysis.h5"
+# file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/270Predictions_clean.analysis.h5"
+file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/Annotators - merged.slp.250323_203032.predictions.slp"
 transforms_file = "/Users/sofia/swc/project_zebras/zebras-stitching/stitching-elastix/out_euler_frame.csv"
-
 video_file = "/Users/sofia/swc/project_zebras/videos/21Jan_007.mp4"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,6 +31,8 @@ frame_shape = video.shape[1:]
 
 ds = load_poses.from_file(file_path, source_software="SLEAP")
 
+# Reduce to mean of keypoints
+# ds = ds.mean("keypoints")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read transforms from elastix (Euler aka 2D rot+translation only)
@@ -43,6 +45,12 @@ ds = load_poses.from_file(file_path, source_software="SLEAP")
 
 transforms_df = pd.read_csv(transforms_file)
 
+# Add row to dataframe with transform for first frame
+transforms_df = pd.concat(
+    [pd.DataFrame({"theta": 0, "tx": 0, "ty": 0}, index=[0]), transforms_df],
+    ignore_index=True,
+)
+
 print(f"Number of transforms: {transforms_df.shape}")
 print(f"Number of frames: {n_frames}")
 
@@ -50,26 +58,28 @@ print(f"Number of frames: {n_frames}")
 # Get coordinates of selected tracklet in ICS
 # a tracklet is a (correct) trajectory of one individual
 
-frame_start = 1467
-frame_end = 1975
+frame_start = 0  # 1467
+# frame_end = 6293  # 1975
 
 # ICS = image coordinate system
-tracklet_position_ICS = ds.position.sel(time=slice(frame_start, frame_end, 1))
+tracklet_position_ICS = ds.position  # .sel(time=slice(frame_start, frame_end, 1))
 tracklet_centroid_ICS = tracklet_position_ICS.squeeze().mean("keypoints")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # plot tracklet in ICS
 fig, ax = plt.subplots()
 im = ax.imshow(video[frame_start])
-sc = ax.scatter(
-    tracklet_centroid_ICS.sel(space="x"),
-    tracklet_centroid_ICS.sel(space="y"),
-    c=tracklet_centroid_ICS.time,
-    cmap="viridis",
-    s=10,
-)
-ax.set_xlim(875, 1075)
-ax.set_ylim(660, 876)
+
+for ind in tracklet_centroid_ICS.individuals:
+    sc = ax.scatter(
+        tracklet_centroid_ICS.sel(space="x", individuals=ind),
+        tracklet_centroid_ICS.sel(space="y", individuals=ind),
+        c=tracklet_centroid_ICS.time,
+        cmap="viridis",
+        s=10,
+    )
+# ax.set_xlim(875, 1075)
+# ax.set_ylim(660, 876)
 ax.set_aspect("equal")
 ax.invert_yaxis()
 
@@ -83,7 +93,7 @@ ax.set_title("Centroid - ICS")
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read transforms for tracklet
 # ATT! first row is the transform from f=1466 to f=1467!
-transforms_tracklet = transforms_df.iloc[slice(frame_start, frame_end + 1, 1)]
+transforms_tracklet = transforms_df  # .iloc[slice(frame_start, frame_end + 1, 1)]
 print(transforms_tracklet)
 
 # check as many transforms as frames in tracklet
@@ -106,7 +116,7 @@ translation_arrays_per_frame = [
 ]
 
 # replace transform from f=1466 to f=1467 with null translation
-translation_arrays_per_frame[0] = np.eye(3)
+# translation_arrays_per_frame[0] = np.eye(3)
 
 # rotation matrices from f to f+1
 # with rotation axis = center of the image
@@ -185,48 +195,64 @@ print(np.linalg.inv(change_of_basis_to_centre) @ np.array([0, 0, 1]))
 # Compute tracklet coordinates in ICSO
 
 # accum_trans_arr = np.eye(3)
-list_tracklet_centroid_ICS0 = []
-for accum_trans_arr, accum_rot_arr, position_s0 in zip(
-    accum_translation_arrays_per_frame,
-    accum_rot_matrices_per_frame,
-    tracklet_centroid_ICS.values,
-    strict=True,
-):
-    # get position data in homog coords in ICS of current frame
-    position_s0_homog = np.vstack([position_s0.reshape(-1, 1), 1.0])
 
-    # express position data in ICS-centre of current frame:
-    # coord system with origin in the center of the image
-    position_s0_homog_centre = change_of_basis_to_centre @ position_s0_homog
+# For each individual
+list_tracklet_centroid_ICS0_all_individuals = []
+for id in range(tracklet_centroid_ICS.values.shape[2]):
+    list_tracklet_centroid_ICS0 = []
 
-    # apply rotation and translation in ICS-centre
-    # order? we assume translation first
-    position_s1_homog_centre = accum_rot_arr @ (
-        accum_trans_arr @ position_s0_homog_centre
+    # For each frame
+    for accum_trans_arr, accum_rot_arr, position_s0 in zip(
+        accum_translation_arrays_per_frame,
+        accum_rot_matrices_per_frame,
+        tracklet_centroid_ICS.values[:, :, id],
+        strict=True,
+    ):
+        # get position data in homog coords in ICS of current frame
+        position_s0_homog = np.vstack([position_s0.reshape(-1, 1), 1.0])
+
+        # express position data in ICS-centre of current frame:
+        # coord system with origin in the center of the image
+        position_s0_homog_centre = change_of_basis_to_centre @ position_s0_homog
+
+        # apply rotation and translation in ICS-centre
+        # order? we assume translation first
+        position_s1_homog_centre = accum_rot_arr @ (
+            accum_trans_arr @ position_s0_homog_centre
+        )
+
+        # express the result back in ICS
+        # (i.e. coord system with origin in the top-left centre)
+        position_s1_homog = (
+            np.linalg.inv(change_of_basis_to_centre) @ position_s1_homog_centre
+        )
+
+        list_tracklet_centroid_ICS0.append(position_s1_homog[:-1, :].T.squeeze())
+
+    list_tracklet_centroid_ICS0_all_individuals.append(
+        np.array(list_tracklet_centroid_ICS0)
     )
-
-    # express the result back in ICS
-    # (i.e. coord system with origin in the top-left centre)
-    position_s1_homog = (
-        np.linalg.inv(change_of_basis_to_centre) @ position_s1_homog_centre
-    )
-
-    list_tracklet_centroid_ICS0.append(position_s1_homog[:-1, :].T.squeeze())
 
 # format as xarray
 tracklet_centroid_ICS0 = xr.DataArray(
-    list_tracklet_centroid_ICS0,
-    dims=["time", "space"],
-    coords={"time": range(frame_start, frame_end + 1), "space": ["x", "y"]},
+    np.stack(list_tracklet_centroid_ICS0_all_individuals, axis=-1),
+    dims=["time", "space", "individuals"],
+    coords={
+        "time": range(frame_start, tracklet_centroid_ICS.values.shape[0]),
+        "space": ["x", "y"],
+    },
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute blended image using one very n frames
-blend_step = 1
-list_frames = list(range(frame_start, frame_end + 1))
+blend_step = 50
+list_frames = list(range(frame_start, tracklet_centroid_ICS.values.shape[0]))
 list_frames_to_plot = list_frames[0:-1:blend_step]
 
-output_shape = [int(x * 1.75) for x in frame_shape[:2]]
+# output_shape = [int(x * 5) for x in frame_shape[:2]]
+output_shape = [1400, 5500]
+
+
 blended_warped_img = np.zeros(output_shape + [3])
 for f_i, f in enumerate(list_frames_to_plot):
     img_warped = warp(
@@ -248,13 +274,15 @@ for f_i, f in enumerate(list_frames_to_plot):
 # ax = axs
 fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
-sc = ax.scatter(
-    tracklet_centroid_ICS0.sel(space="x"),
-    tracklet_centroid_ICS0.sel(space="y"),
-    c=tracklet_centroid_ICS0.time,
-    cmap="viridis",
-    s=10,
-)
+
+for ind in tracklet_centroid_ICS0.individuals:
+    sc = ax.scatter(
+        tracklet_centroid_ICS0.sel(space="x", individuals=ind),
+        tracklet_centroid_ICS0.sel(space="y", individuals=ind),
+        c=tracklet_centroid_ICS0.time,
+        cmap="viridis",
+        s=1,
+    )
 # ax.set_xlim(875, 1075)
 # ax.set_ylim(660, 876)
 ax.set_aspect("equal")
@@ -264,6 +292,32 @@ ax.set_ylabel("y (pixels)")
 plt.colorbar(sc)
 
 ax.set_title("Centroid - ICS0")
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot  trajectory in ICS0
+# ax = axs
+fig, ax = plt.subplots()
+ax.imshow(blended_warped_img)
+
+for t in range(tracklet_centroid_ICS0.shape[0]):
+    ax.scatter(
+        tracklet_centroid_ICS0[t, 0, :],
+        tracklet_centroid_ICS0[t, 1, :],
+        c=range(tracklet_centroid_ICS0.shape[2]),
+        s=1,
+        cmap="tab20",
+    )
+# ax.set_xlim(875, 1075)
+# ax.set_ylim(660, 876)
+ax.set_aspect("equal")
+# ax.invert_yaxis()
+ax.set_xlabel("x (pixels)")
+ax.set_ylabel("y (pixels)")
+# plt.colorbar(sc)
+
+ax.set_title("Centroid - ICS0")
+
+
 # %%
 # from skimage.transform import SimilarityTransform
 # # tform = SimilarityTransform(translation=(0, -10))
@@ -277,3 +331,26 @@ ax.set_title("Centroid - ICS0")
 
 # fig, ax = plt.subplots()
 # ax.imshow(warped)
+
+# %%
+from pathlib import Path
+
+# Define a movement dataset
+from movement.io import load_poses, save_poses
+
+ds_export = load_poses.from_numpy(
+    position_array=np.expand_dims(tracklet_centroid_ICS0.values, axis=-2),
+    confidence_array=np.expand_dims(ds.confidence.mean("keypoints"), axis=-2),
+    individual_names=ds.individuals.values,
+    keypoint_names=["centroid"],
+    source_software="manual",
+)
+
+ds_export.attrs["source_file"] = ""
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_export, Path("/Users/sofia/swc/project_zebras/zebras-stitching/test.h5")
+)
+
+# %%
+# %%
