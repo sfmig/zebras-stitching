@@ -8,7 +8,7 @@ import xarray as xr
 from movement.io import load_poses
 from skimage.transform import warp
 
-# %matplotlib widget
+%matplotlib widget
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
@@ -30,9 +30,6 @@ frame_shape = video.shape[1:]
 # Read trajectory as a movement dataset
 
 ds = load_poses.from_file(file_path, source_software="SLEAP")
-
-# Reduce to mean of keypoints
-# ds = ds.mean("keypoints")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read transforms from elastix (Euler aka 2D rot+translation only)
@@ -269,6 +266,13 @@ for f_i, f in enumerate(list_frames_to_plot):
     )
     blended_warped_img = np.maximum(blended_warped_img, img_warped)
 
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# % Save blended image
+import matplotlib.image
+
+matplotlib.image.imsave('Figure_blended_n50.png', blended_warped_img)
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot  trajectory in ICS0
 # ax = axs
@@ -298,6 +302,7 @@ ax.set_title("Centroid - ICS0")
 # ax = axs
 fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
+
 
 for t in range(tracklet_centroid_ICS0.shape[0]):
     ax.scatter(
