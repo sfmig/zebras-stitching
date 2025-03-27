@@ -14,7 +14,7 @@ from skimage.transform import warp
 # Input data
 
 # file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/270Predictions_clean.analysis.h5"
-file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/Annotators - merged.slp.250323_203032.predictions.slp"
+file_path = "/Users/sofia/swc/project_zebras/zebras-stitching/data/20250325_2228_id.slp"
 transforms_file = "/Users/sofia/swc/project_zebras/zebras-stitching/stitching-elastix/out_euler_frame.csv"
 video_file = "/Users/sofia/swc/project_zebras/videos/21Jan_007.mp4"
 
@@ -78,7 +78,7 @@ for ind in tracklet_centroid_ICS.individuals:
 # ax.set_xlim(875, 1075)
 # ax.set_ylim(660, 876)
 ax.set_aspect("equal")
-ax.invert_yaxis()
+# ax.invert_yaxis()
 
 ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
