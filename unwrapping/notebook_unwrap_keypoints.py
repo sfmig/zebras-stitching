@@ -1,5 +1,10 @@
+"""A notebook to express keypoints in a world coordinate system"""
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Imports
+from pathlib import Path
+
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -7,27 +12,24 @@ import sleap_io as sio
 import xarray as xr
 from movement.io import load_poses, save_poses
 
+# import scipy
+# from movement.utils.broadcasting import make_broadcastable
+# from scipy.spatial.transform import Rotation as R
 from skimage.transform import warp
-import scipy
-from scipy.spatial.transform import Rotation as R
-from movement.utils.broadcasting import make_broadcastable
 
-from pathlib import Path
-
-import matplotlib
-%matplotlib widget
+# %matplotlib widget -- uncomment for interactive plotting
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data paths
 
-repo_root = Path(__file__).parents[1] 
-data_dir =  repo_root/ "data"
+repo_root = Path(__file__).parents[1]
+data_dir = repo_root / "data"
 transforms_dir = repo_root / "stitching-elastix"
 
 filename = "20250325_2228_id"
 file_path = data_dir / filename
 transforms_file = transforms_dir / "out_euler_frame.csv"
-video_file = repo_root.parent /  "videos" / "21Jan_007.mp4"
+video_file = repo_root.parent / "videos" / "21Jan_007.mp4"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read video
@@ -47,7 +49,7 @@ ds = load_poses.from_file(file_path, source_software="SLEAP")
 position_array = ds.position
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Read transforms from elastix 
+# Read transforms from elastix
 #
 # Transforms are Euler (i.e., 2D rot+translation only)
 # They are expressed:
@@ -55,10 +57,10 @@ position_array = ds.position
 # - and a translation vector
 # The rotation is expressed as an angle in radians
 # The translation is expressed as a vector in pixels
-# The transform given for frame f is the transform required to 
+# The transform given for frame f is the transform required to
 # go from frame f to frame f+1 (---> ok?)
 
-# Elastix finds the parameters of a transformation (like rigid, affine, or non-rigid) 
+# Elastix finds the parameters of a transformation (like rigid, affine, or non-rigid)
 # that best maps the moving image (f?) to the fixed image (f+1?)
 
 # read as pandas dataframe
@@ -75,7 +77,7 @@ transforms_df = pd.concat(
 
 # Check as many transforms as frames
 assert transforms_df.shape[0] == n_frames
-print(f"Number of transforms: {transforms_df.shape}") 
+print(f"Number of transforms: {transforms_df.shape}")
 print(f"Number of frames: {n_frames}")
 
 
@@ -86,10 +88,10 @@ print(f"Number of frames: {n_frames}")
 
 position_array_homogeneous = xr.concat(
     [
-        ds["position"], 
-        xr.full_like(ds["position"].sel(space="x"), 1).expand_dims(space=["h"])
+        ds["position"],
+        xr.full_like(ds["position"].sel(space="x"), 1).expand_dims(space=["h"]),
     ],
-    dim="space"
+    dim="space",
 )
 
 print(position_array_homogeneous)
@@ -111,18 +113,8 @@ Q_corner_to_centre = np.eye(3)
 Q_corner_to_centre[:2, 2] = -v_corner_to_centre
 
 
-# ---------
-# # Apply change of basis to the position array
-# position_homog_ICS_centre = xr.apply_ufunc(
-#     lambda vec: Q_corner_to_centre @ vec,  
-#     position_array_homogeneous,  # position in ICS corner
-#     input_core_dims=[["space"]],
-#     output_core_dims=[["space"]],
-#     vectorize=True
-# )
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&&&&&&&&&&&&&
-# Compute array of (accum) rotation matrices per frame --- ok?  
+# Compute array of (accum) rotation matrices per frame --- ok?
 
 # ICS0_centre is the coordinate system fixed to the ground,
 # and parallel to the ICS at frame 0. Its origin is the projection
@@ -131,55 +123,37 @@ Q_corner_to_centre[:2, 2] = -v_corner_to_centre
 # The rotation is accumulated because we compute it as the
 # cumulative sum of the rotations from f to f+1
 
+
 def compute_rotation_matrix(theta):
     """Compute rotation matrix for a given angle theta (in radians).
     The rotation is around the z-axis (i.e., in the xy-plane).
     Theta is positive going from x to y."""
     return np.array(
-            [
-                [np.cos(theta), -np.sin(theta), 0],
-                [np.sin(theta), np.cos(theta), 0],
-                [0, 0, 1],
-            ]
-        )
+        [
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta), 0],
+            [0, 0, 1],
+        ]
+    )
+
 
 # Compute rotation matrix for every theta value
-compute_rotation_matrix_vec = np.vectorize(compute_rotation_matrix, signature="()->(3, 3)")
+compute_rotation_matrix_vec = np.vectorize(
+    compute_rotation_matrix, signature="()->(3, 3)"
+)
 rotation_to_ICS0_centre_array = compute_rotation_matrix_vec(
     transforms_df["theta"].cumsum().values,  # we take the cumulative sum of theta
 )
 
 print(rotation_to_ICS0_centre_array.shape)
 
-#----- with xarray & using scipy rotation object
-# def compute_rotation_matrix(theta):
-#     return R.from_matrix(
-#         np.array(
-#             [
-#                 [np.cos(theta), -np.sin(theta), 0],
-#                 [np.sin(theta), np.cos(theta), 0],
-#                 [0, 0, 1],
-#             ]
-#         )
-#     )
-#
-# rotation_to_ICS0_array = xr.apply_ufunc(
-#     compute_rotation_matrix,
-#     xr.DataArray(
-#         transforms_df["theta"].cumsum().values,  # take cumulative sum of theta! is it the same?
-#         dims=["time"]
-#     ),
-#     vectorize=True,
-# )
-
-# print(rotation_to_ICS0_array.shape)
-
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute array of accumulated translation per frame
 
+
 def compute_translation_matrix(tx, ty):
-    """Compute the translation matrix in homog coordinates 
+    """Compute the translation matrix in homog coordinates
     for a given translation vector (tx, ty)."""
     return np.array(
         [
@@ -189,14 +163,15 @@ def compute_translation_matrix(tx, ty):
         ]
     )
 
-compute_translation_matrix_vec = np.vectorize(compute_translation_matrix, signature="(),()->(3, 3)")
+
+compute_translation_matrix_vec = np.vectorize(
+    compute_translation_matrix, signature="(),()->(3, 3)"
+)
 translation_to_ICS0_centre_array = compute_translation_matrix_vec(
-    transforms_df["tx"].cumsum().values, 
-    transforms_df["ty"].cumsum().values
+    transforms_df["tx"].cumsum().values, transforms_df["ty"].cumsum().values
 )
 
 print(translation_to_ICS0_centre_array.shape)
-
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -208,21 +183,20 @@ print(translation_to_ICS0_centre_array.shape)
 # 3- Apply translation (first) + rotation (second)
 # 4- Transform coordinates back to ICS_corner
 
-position_array_ICS0 =(
+position_array_ICS0 = (
     np.linalg.inv(Q_corner_to_centre)  # (3, 3)
     @ rotation_to_ICS0_centre_array  # (6294, 3, 3)
     @ translation_to_ICS0_centre_array  # (6294, 3, 3)
     @ Q_corner_to_centre  # (3, 3)
     @ np.expand_dims(
-        np.moveaxis(position_array_homogeneous.values, [0,1], [2,3]),
-        axis=-1
-    ) # (2, 322, 6294, 3, 1); 
+        np.moveaxis(position_array_homogeneous.values, [0, 1], [2, 3]), axis=-1
+    )  # (2, 322, 6294, 3, 1);
     # we move the array axes to the end as per numpy.matmul convention
     # https://numpy.org/doc/2.0/reference/generated/numpy.matmul.html --> Notes
 )
 
 # undo the reordering dimensions required for broadcasting
-position_array_ICS0 = np.moveaxis(position_array_ICS0, [0,1], [-2,-1]).squeeze()
+position_array_ICS0 = np.moveaxis(position_array_ICS0, [0, 1], [-2, -1]).squeeze()
 
 # format the result as xarray
 position_array_ICS0 = xr.DataArray(
@@ -247,10 +221,14 @@ colors = cmap(values)
 fig, ax = plt.subplots()
 for i, ind in enumerate(position_array_ICS0.individuals):
     ax.scatter(
-        position_array_ICS0.mean("keypoints").sel(space="x", individuals=ind).values.flatten(),
-        position_array_ICS0.mean("keypoints").sel(space="y", individuals=ind).values.flatten(),
+        position_array_ICS0.mean("keypoints")
+        .sel(space="x", individuals=ind)
+        .values.flatten(),
+        position_array_ICS0.mean("keypoints")
+        .sel(space="y", individuals=ind)
+        .values.flatten(),
         s=1,
-        c=colors[i,:].reshape(1,-1),
+        c=colors[i, :].reshape(1, -1),
     )
 ax.set_aspect("equal")
 ax.invert_yaxis()
@@ -265,12 +243,20 @@ fig, ax = plt.subplots()
 for f in range(position_array_ICS0.shape[0]):
     ax.plot(
         [
-            position_array_ICS0.sel(time=f, individuals=ind, keypoints="H").sel(space="x"),
-            position_array_ICS0.sel(time=f, individuals=ind, keypoints="T").sel(space="x")
+            position_array_ICS0.sel(time=f, individuals=ind, keypoints="H").sel(
+                space="x"
+            ),
+            position_array_ICS0.sel(time=f, individuals=ind, keypoints="T").sel(
+                space="x"
+            ),
         ],
         [
-            position_array_ICS0.sel(time=f, individuals=ind, keypoints="H").sel(space="y"),
-            position_array_ICS0.sel(time=f, individuals=ind, keypoints="T").sel(space="y")
+            position_array_ICS0.sel(time=f, individuals=ind, keypoints="H").sel(
+                space="y"
+            ),
+            position_array_ICS0.sel(time=f, individuals=ind, keypoints="T").sel(
+                space="y"
+            ),
         ],
         "go-",
     )
@@ -298,7 +284,7 @@ for f_i, f in enumerate(list_frames_to_plot):
         np.linalg.inv(
             np.linalg.inv(Q_corner_to_centre)
             @ rotation_to_ICS0_centre_array[list_frames.index(f), :, :]
-            @ translation_to_ICS0_centre_array[list_frames.index(f),:,:]
+            @ translation_to_ICS0_centre_array[list_frames.index(f), :, :]
             @ Q_corner_to_centre
         ),
         # we do inverse outside because skimage's warp expects
@@ -313,7 +299,7 @@ for f_i, f in enumerate(list_frames_to_plot):
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # % Save blended image
 
-matplotlib.image.imsave(f'Figure_blended_n{blend_step}.png', blended_warped_img)
+matplotlib.image.imsave(f"Figure_blended_n{blend_step}.png", blended_warped_img)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -322,8 +308,12 @@ fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
 for ind in position_array_ICS0.individuals:
     ax.scatter(
-        position_array_ICS0.mean("keypoints").sel(space="x", individuals=ind).values.flatten(),
-        position_array_ICS0.mean("keypoints").sel(space="y", individuals=ind).values.flatten(),
+        position_array_ICS0.mean("keypoints")
+        .sel(space="x", individuals=ind)
+        .values.flatten(),
+        position_array_ICS0.mean("keypoints")
+        .sel(space="y", individuals=ind)
+        .values.flatten(),
         s=1,
         cmap="tab20",
     )
@@ -349,95 +339,6 @@ ds_export = load_poses.from_numpy(
 ds_export.attrs["source_file"] = ""
 
 slp_file = save_poses.to_sleap_analysis_file(
-    ds_export, data_dir / f"{filename}_unwrapped.h5",
+    ds_export,
+    data_dir / f"{filename}_unwrapped.h5",
 )
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-# @make_broadcastable()
-# def apply_rotation(rotation, position_homog):
-#     return rotation.apply(position_homog)
-
-# position_homog_ICS_centre_rot = apply_rotation(
-#     rotation_to_ICS_f_to_fplus1,
-#     position_homog_ICS_centre,
-#     broadcast_dimension=['time']
-# )
-
-
-
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-# With broadcasting:
-
-# @make_broadcastable()
-# def apply_transform_to_position_ICS_centre(position_homog_ICS_centre, accum_rotm, accum_trans_arr):
-#     return accum_rotm @ (
-#             accum_trans_arr @ position_homog_ICS_centre
-#         )
-
-
-# position_homog_ICS0_centre = apply_transform_to_position_ICS_centre(
-#     position_homog_ICS_centre,
-#     accum_rotm, # is it possible?
-#     accum_trans_arr,
-# )
-
-# position_homog_ICS0 = transform_to_ICS_corner(position_homog_ICS0_centre, Q_corner_to_centre)
-
-
-# %%%%%%%%%%%%%%%%%%%%%%
-# # Define function to broadcast
-
-# def transform_to_ICS0(
-#     position_homog_ICS, 
-#     change_of_basis_to_centre, 
-#     accum_rot_arr_per_frame, 
-#     accum_trans_arr_per_frame
-# ):
-
-#     # apply change of basis to the position
-#     position_homog_ICS_centre = change_of_basis_to_centre @ position_homog_ICS
-
-#     # apply rotation and translation to express in ICS0_centre
-#     # order? we assume translation first
-#     position_homog_ICS0_centre = accum_rot_arr_per_frame @ (
-#         accum_trans_arr_per_frame @ position_homog_ICS_centre
-#     )
-
-#     # express the result back in ICS0
-#     # (i.e. coord system with origin in the top-left centre)
-#     position_homog_ICS0 = (
-#         np.linalg.inv(change_of_basis_to_centre) @ position_homog_ICS0_centre
-#     )
-
-#     return position_homog_ICS0
-
-
-
-# %%
-# # compute keypoints in ECS (translated and rotated)
-# position_ego_3d = xr.apply_ufunc(
-#     lambda rot, trans, vec: rot.apply(vec - trans),
-#     rotation2egocentric,  # rot
-#     centroid_3d,  # trans
-#     position_3d,  # vec
-#     input_core_dims=[[], ["space"], ["space"]],
-#     output_core_dims=[["space"]],
-#     vectorize=True,
-# )
-# %%
-
-# new_position_data = np.pad(ds["position"].values, ((0, 0), (0, 1), (0, 0), (0, 0)), constant_values=1)
-# # Create a new DataArray with the expanded space dimension
-# new_position = xr.DataArray(
-#     new_position_data,
-#     dims=["time", "space", "keypoints", "individuals"],
-#     coords={
-#         "time": ds["time"],
-#         "space": new_space,
-#         "keypoints": ds["keypoints"],
-#         "individuals": ds["individuals"],
-#     },
-# )
