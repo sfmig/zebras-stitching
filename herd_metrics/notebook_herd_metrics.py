@@ -263,6 +263,7 @@ im = ax.matshow(
 )
 cbar = plt.colorbar(im)
 cbar.set_label("alignment with average unit body vector")
+ax.get_images()[0].set_clim(-1, 1)
 ax.set_xlabel("individuals")
 ax.set_ylabel("frame")
 
