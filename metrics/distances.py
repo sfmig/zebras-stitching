@@ -17,6 +17,8 @@ from movement.io import load_poses
 from movement.plots import plot_centroid_trajectory
 from movement.kinematics import compute_pairwise_distances
 from movement.filtering import rolling_filter
+from movement.transforms import scale
+from movement.utils.vector import compute_norm
 
 # %%
 # Load unwrapped poses
@@ -69,13 +71,33 @@ for id, color in zip(individuals, colors):
     )
 ax.set_title("Individual trajectories within the arena")
 
+# %%
+# Scale position by body length
+# -----------------------------
+
+positions = poses.position
+# Define the body length of the zebras in pixels
+body_axis = positions.sel(keypoints="T") - positions.sel(keypoints="H")
+body_length = compute_norm(body_axis)
+# Compute the median body length (across time and individuals)
+median_body_length = body_length.median(skipna=True).values
+print(f"Median body length: {median_body_length:.2f} pixels")
+
+# Scale the positions by the body length
+positions_scaled = scale(
+    positions,
+    factor=1 / median_body_length,
+    space_unit="body lengths",
+)
+
+
 
 # %%
 # Compute pairwise distances
 # --------------------------
 
 # Compute the centroid of each zebra
-centroids = poses.position.mean(dim="keypoints", skipna=True)
+centroids = positions_scaled.mean(dim="keypoints", skipna=True)
 
 # Generate a dict mapping from pair names to data arrays containing
 # inter-centroid distances over time for that pair of individuals
@@ -95,7 +117,7 @@ distances = xr.concat(
 distances = distances.assign_coords(
     id_pair=list(distances_dict.keys())
 )
-distances.name = "Distance (pixels)"
+distances.name = "Distance (body lengths)"
 print(distances)
 
 
@@ -158,14 +180,13 @@ ax.set_xlabel("Time (s)")
 
 
 # %%
-# Plot median and quartiles of nearest neighbor distances across time
+# Plot mean, mix, and max nearest neighbor distances across time
 fig, ax = plt.subplots(1, 1)
-distances_nn.mean(dim="individuals").plot(label="median", ax=ax, color="k")
-distances_nn.quantile(0.25, dim="individuals").plot(
-    label="25th percentile", ax=ax, color="gray",
-)
-distances_nn.quantile(0.75, dim="individuals").plot(
-    label="75th percentile", ax=ax, color="gray",
-)
+distances_nn.mean(dim="individuals").plot(label="mean", ax=ax)
+distances_nn.min(dim="individuals").plot(label="min", ax=ax)
+distances_nn.max(dim="individuals").plot(label="max", ax=ax)
 ax.legend()
-ax.set_title("Nearest neighbot distances")
+ax.set_title("Nearest neighbot distances (body lengths)")
+ax.set_xlabel("Time (s)")
+
+# %%
