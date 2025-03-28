@@ -140,7 +140,8 @@ distances.mean(dim="id_pair").plot(label="mean", ax=ax)
 distances.min(dim="id_pair").plot(label="min", ax=ax)
 distances.max(dim="id_pair").plot(label="max", ax=ax)
 ax.legend()
-ax.set_title("Inter-individual distances")
+ax.set_title("Pair-wise distances between zebras")
+ax.set_xlabel("Time (s)")
 
 
 # %%
@@ -157,7 +158,7 @@ distances_nn = xr.DataArray(
     ),
 )
 
-distances_nn.name = "Distance to Nearest Neighbor (pixels)"
+distances_nn.name = "Distance (body lengths)"
 
 # Compute the nearest neighbor distance for each individual
 for id in individuals:
@@ -186,7 +187,7 @@ distances_nn.mean(dim="individuals").plot(label="mean", ax=ax)
 distances_nn.min(dim="individuals").plot(label="min", ax=ax)
 distances_nn.max(dim="individuals").plot(label="max", ax=ax)
 ax.legend()
-ax.set_title("Nearest neighbot distances (body lengths)")
+ax.set_title("Distance to nearest neighbor")
 ax.set_xlabel("Time (s)")
 
 # %%
