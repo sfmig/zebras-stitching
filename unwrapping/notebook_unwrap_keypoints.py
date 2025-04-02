@@ -58,16 +58,16 @@ position_array = ds.position
 # The rotation is expressed as an angle in radians
 # The translation is expressed as a vector in pixels
 # The transform given for frame f is the transform required to
-# go from frame f to frame f+1 (---> ok?)
+# go from frame f to frame f-1 
 
 # Elastix finds the parameters of a transformation (like rigid, affine, or non-rigid)
-# that best maps the moving image (f?) to the fixed image (f+1?)
+# that best maps the moving image (f) to the fixed image (f-1)
 
 # read as pandas dataframe
 transforms_df = pd.read_csv(transforms_file)
 
 # Add row to dataframe with transform for first frame
-# For f=0, the transform from the previous to the current frame
+# For f=0, the transform from the current to the previous frame
 # is the identity (i.e., no rotation, no translation)
 transforms_df = pd.concat(
     [pd.DataFrame({"theta": 0, "tx": 0, "ty": 0}, index=[0]), transforms_df],
@@ -121,7 +121,7 @@ Q_corner_to_centre[:2, 2] = -v_corner_to_centre
 # of the image centre in the ground at frame 0.
 
 # The rotation is accumulated because we compute it as the
-# cumulative sum of the rotations from f to f+1
+# cumulative sum of the rotations from f to f-1
 
 
 def compute_rotation_matrix(theta):
@@ -180,7 +180,7 @@ print(translation_to_ICS0_centre_array.shape)
 
 # Following the matrix multiplication from Right to Left:
 # 1- Transform coordinates to ICS_centre
-# 3- Apply translation (first) + rotation (second)
+# 3- Apply transform from f to f=0: translation (first) + rotation (second)
 # 4- Transform coordinates back to ICS_corner
 
 position_array_ICS0 = (
@@ -274,6 +274,8 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 
 # Shape of output (blended) image
 # output_shape = [int(x * 5) for x in frame_shape[:2]]
+# TODO: it crops anything above the y=0 axis of the first frame
+# Can we fix this?
 output_shape = [1400, 5500]
 blended_warped_img = np.zeros(output_shape + [3])
 
