@@ -1,10 +1,11 @@
 """Clean noisy zebra tracks
 ===========================
+The following steps are performed:
 
-- Load the unwrapped zebra tracks from file
-- Use movement=0.6.0 to filter out low-confidence keypoints and keypoints that
-  are too far from the previous position,
-- save the cleaned data to file.
+- Load the unwrapped zebra tracks from file.
+- Use movement to filter out low-confidence keypoints and keypoints that
+  are too far from the previous position.
+- Save the cleaned data to file.
 """
 
 # %%
