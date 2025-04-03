@@ -1,4 +1,0 @@
-stitching
-sleap-io
-movement
-ipympl
