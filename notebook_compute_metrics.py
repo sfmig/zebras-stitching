@@ -11,21 +11,24 @@ It computes the following metrics:
 
 """
 
+import os
+
 # %%
 # Imports
 # -------
 from pathlib import Path
-import os
 
 import matplotlib.pyplot as plt
-import xarray as xr
 import numpy as np
-
+import xarray as xr
 from movement.io import load_poses
 from movement.kinematics import compute_pairwise_distances, compute_speed
 from movement.transforms import scale
 from movement.utils.vector import compute_norm, convert_to_unit
 
+# For interactive plots: install ipympl with `pip install ipympl` and uncomment
+# the following line in your notebook
+# %matplotlib widget
 # %%
 # Print the version of movement that is being used (for reproducibility)
 os.system("movement info")
@@ -44,7 +47,7 @@ assert video_dir.exists()
 filename = "20250325_2228_id_unwrapped_clean_sleap.h5"
 file_path = data_dir / filename
 video_path = video_dir / "21Jan_007.mp4"
-background_path = video_dir / "21Jan_007_unwrapped_bacground.png"
+background_path = video_dir / "21Jan_007_unwrapped_background.png"
 for path in [file_path, video_path, background_path]:
     assert path.exists()
 
@@ -54,7 +57,7 @@ ds = load_poses.from_file(file_path, source_software="SLEAP", fps=30)
 print(ds)
 
 # %%
-# Compute and visualise body vectors
+# Compute body length per individual
 # ----------------------------------
 # We define the body vector as the vector originating at keypoint "T" (tail)
 # and ending at keypoint "H" (head).
@@ -66,7 +69,7 @@ body_length_std = body_length.std()
 body_length_mean = body_length.mean()
 body_length_median = body_length.median()
 
-# %% 
+# %%
 # Plot body length histogram, coloured by individuals
 
 fig, ax = plt.subplots()
@@ -111,16 +114,49 @@ body_vector_avg = body_vector_filtered.mean("individuals")
 print(body_vector_avg.shape)
 
 # %%
+# Compute the alignment of each individual with the average body orientation
+# across time
+# -----------------------------------------------------------------------------
+
+# Compute average **unit** body vector across all individuals per frame
+# (if vectors are unit, their average is the same as the resultant vector)
+body_vector_unit_avg = convert_to_unit(body_vector_filtered).mean("individuals")
+print(body_vector_unit_avg.shape)
+
+
+# Compute dot product between each individual's unit body vector and
+# the average unit body vector
+body_vector_filtered_unit = convert_to_unit(body_vector_filtered)
+cos_body_vector = xr.dot(
+    body_vector_filtered_unit,
+    body_vector_unit_avg,
+    dims=["space"],
+)  # the dot product is the cosine of the angle between the two unit vectors
+
+
+# Plot the alignment of each individual with the average unit body vector
+# across time
+fig, ax = plt.subplots()
+im = ax.matshow(
+    cos_body_vector,
+    aspect="auto",
+    cmap="coolwarm",
+)
+cbar = plt.colorbar(im)
+cbar.set_label("alignment with average unit body vector")
+ax.get_images()[0].set_clim(-1, 1)
+ax.set_xlabel("individuals")
+ax.set_ylabel("frame")
+
+# %%
 # Compute the herd's polarisation
 # -------------------------------
-# We define polarisation as the mean resultant length of the body vectors:
+# We define polarisation as the norm of the resultant unit body vector per frame.
+# The resultant unit vector is the average of the unit body vectors across individuals.
 # 1. convert body length vectors to unit vectors
-# 2. compute the mean of the unit vectors
-# 3. compute the norm of the mean resultant unit vector as the polarisation
+# 2. compute the resultant of the unit vectors
+# 3. compute the norm of the resultant unit vector as the polarisation
 
-# Compute average **unit** body vector per frame
-# (if unit, average is the same as resultant vector)
-body_vector_unit_avg = convert_to_unit(body_vector_filtered).mean("individuals")
 polarisation = compute_norm(body_vector_unit_avg)
 polarisation.name = "Herd polarisation"
 
@@ -132,9 +168,7 @@ polarisation.name = "Herd polarisation"
 # (this is not necessary, but it makes the plots easier to interpret)
 
 position_scaled = scale(
-    ds.position,
-    factor=1/body_length_median.item(),
-    space_unit="body_length"
+    ds.position, factor=1 / body_length_median.item(), space_unit="body_length"
 )
 
 # %%
@@ -187,9 +221,7 @@ distances = xr.concat(
     distances_dict.values(),
     dim="id_pair",
 )
-distances = distances.assign_coords(
-    id_pair=list(distances_dict.keys())
-)
+distances = distances.assign_coords(id_pair=list(distances_dict.keys()))
 distances.name = "Distance (body lengths)"
 print(distances)
 
@@ -217,7 +249,8 @@ ax.set_xlabel("Time (s)")
 ax.set_ylabel(distances.name)
 
 # %%
-# Combine polarisation, speed, and distances into a signle plot
+# Combine polarisation, speed, and distances into a single plot
+# -------------------------------------------------------------
 
 fig, ax = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
 
@@ -255,5 +288,51 @@ fig.subplots_adjust(
     right=0.95,
     hspace=0.3,
 )
+
+# %%
+# Nearest neighbors
+# -----------------
+
+# Creat an array of NaN with shape (time, individuals)
+distances_nn = xr.DataArray(
+    data=np.nan,
+    dims=["time", "individuals"],
+    coords=dict(
+        time=position_scaled.time,
+        individuals=position_scaled.individuals,
+    ),
+)
+
+distances_nn.name = "Distance (body lengths)"
+
+# Compute the nearest neighbor distance for each individual
+for id in position_scaled.individuals.values:
+    pairs_with_id = [pair for pair in distances_dict.keys() if id in pair]
+    distances_nn.loc[dict(individuals=id)] = distances.sel(
+        id_pair=pairs_with_id).min(
+            dim="id_pair", skipna=True
+        )
+
+print(distances_nn)
+
+# %%
+# Plot the nearest neighbor distances across time
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+distances_nn.transpose().plot(ax=ax)
+# Don't show the y labels
+ax.set_yticklabels([])
+ax.set_title("Distance to nearest neighbor")
+ax.set_xlabel("Time (s)")
+
+
+# %%
+# Plot mean, mix, and max nearest neighbor distances across time
+fig, ax = plt.subplots(1, 1)
+distances_nn.mean(dim="individuals").plot(label="mean", ax=ax)
+distances_nn.min(dim="individuals").plot(label="min", ax=ax)
+distances_nn.max(dim="individuals").plot(label="max", ax=ax)
+ax.legend()
+ax.set_title("Distance to nearest neighbor")
+ax.set_xlabel("Time (s)")
 
 # %%
