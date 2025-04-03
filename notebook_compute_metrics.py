@@ -133,12 +133,12 @@ polarisation.name = "Herd polarisation"
 
 position_scaled = scale(
     ds.position,
-    factor=1/body_length_mean.item(),
+    factor=1/body_length_median.item(),
     space_unit="body_length"
 )
 
 # %%
-# Compute speed of each zebra'ss centroid, and then average across individuals
+# Compute speed of each zebra's centroid, and then average across individuals
 
 centroid = position_scaled.mean("keypoints")
 speed_avg = compute_speed(centroid).mean("individuals")
