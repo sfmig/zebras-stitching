@@ -131,6 +131,7 @@ position_filt = filter_by_confidence(
     ds.position, ds.confidence, threshold=conf_thresh,
 )
 
+
 # %%
 # Plot the frame-to-frame distance for each keypoint before and after
 # filtering.
@@ -212,6 +213,42 @@ for id, color in zip(individuals, colors):
     )
 ax.set_title("Individual trajectories")
 
+# %%
+# Count missing values
+# -------------------
+# Let's see how many point we lost int the filtering process.
+# We first define a function for computing the number of NaN values in the
+# data array.
+
+
+def count_nan_percent(data: xr.DataArray) -> float:
+    """
+    Compute the percentage of missing values in the data array.
+
+    A values is considered missing if at least one of its spatial
+    coordinates is NaN.
+    """
+    n_nan = data.isnull().any(["space"]).sum().item()
+    n_total = data.size / data.sizes["space"]
+    return n_nan / n_total * 100
+
+
+# %%
+# Count the percentage of missing values in the original and after
+# each filtering step.
+
+missing_in_original = count_nan_percent(ds.position)
+missing_in_filtered = count_nan_percent(position_filt)
+missing_in_clean = count_nan_percent(position_clean)
+print(
+    f"Missing values in original data: {missing_in_original:.2f}%"
+)
+print(
+    f"Missing values in confidence-filtered data: {missing_in_filtered:.2f}%"
+)
+print(
+    f"Missing values in distance-filtered data: {missing_in_clean:.2f}%"
+)
 
 # %%
 # Save the cleaned data
