@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Optional
 from pathlib import Path
 import numpy.typing as npt
 
@@ -41,9 +41,7 @@ def run_registration(
     moving_image = itk.GetImageViewFromArray(moving_image)
     fixed_image = itk.GetImageViewFromArray(fixed_image)
 
-    elastix_object = itk.ElastixRegistrationMethod.New(
-        fixed_image, moving_image
-    )
+    elastix_object = itk.ElastixRegistrationMethod.New(fixed_image, moving_image)
 
     if moving_mask is not None:
         moving_mask = itk.GetImageViewFromArray(moving_mask)
