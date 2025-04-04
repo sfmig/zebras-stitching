@@ -2,3 +2,8 @@
 *.jpg
 *.jpeg
 *.mp4
+videos/
+.venv
+build
+.ruff_cache
+.DS_Store

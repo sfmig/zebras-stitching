@@ -1,0 +1,61 @@
+[project]
+name = "zebras-stitching"
+version = "0.1.0"
+description = "Exploring how to stitch zebra data"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pyproj",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "opencv-python",
+    "h5py",
+    "ipykernel",
+    "jupyter",
+    "xarray>=2023.1.0",
+    "seaborn>=0.13.2",
+    "movement>=0.0.5",
+    "napari[all]>=0.5.6",
+    "brainglobe-registration",
+    "plotly",
+]
+
+# Simplified build configuration - just enough for dependency management
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+# Explicitly define an empty list of packages to prevent auto-discovery
+[tool.setuptools]
+packages = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+# Enable comprehensive set of rules
+select = ["E", "F", "I", "W", "N", "D", "UP", "B", "C4", "T20", "PL"]
+ignore = []
+line-length = 88
+
+# Target Python version
+target-version = "py310"
+
+# Show fixes for violations when running Ruff
+show-fixes = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+
+[tool.ruff.isort]
+known-first-party = ["zebras_stitching"]
+
+[tool.uv.sources]
+brainglobe-registration = { git = "https://github.com/brainglobe/brainglobe-registration.git" }
