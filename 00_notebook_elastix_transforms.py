@@ -48,7 +48,11 @@ with open(output_file, "w") as f:
 
 for i in tqdm(range(1, video_data.shape[0])):
     # Track to avoid mixing up the frames
-    fixed_index = i
+    # TODO: this is opposite to what is assumed in notebook_01
+    # and opposite to what we had before
+    # Before: moving = i, fixed = i - 1
+    # https://docs.google.com/presentation/d/1TvZOXMzuC9KKLuIrOLLFFnFqxjz0VgFxfH88ORONYi8/edit?slide=id.g33f0e056261_0_668#slide=id.g33f0e056261_0_668
+    fixed_index = i  
     moving_index = i - 1
 
     fixed = video_data[fixed_index]
