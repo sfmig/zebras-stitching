@@ -64,8 +64,9 @@ position_array = ds.position
 # The transform given for frame f is the transform required to
 # go from frame f to frame f-1 
 
-# Elastix finds the parameters of a transformation (like rigid, affine, or non-rigid)
-# that best maps the moving image (f) to the fixed image (f-1)
+# itk-elastix computes transformations that map points 
+# from the fixed image (f) domain to the moving image (f-1) domain.
+# See: https://github.com/InsightSoftwareConsortium/ITKElastix/blob/main/examples/ITK_Example08_SimpleTransformix.ipynb
 
 # read as pandas dataframe
 transforms_df = pd.read_csv(transforms_file)
