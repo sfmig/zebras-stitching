@@ -16,7 +16,6 @@ from tqdm import tqdm
 # %%
 
 # Load video into a numpy array with shape (num_frames, height, width)
-# The video is converted to grayscale and stored as uint8.
 
 video_path = "21Jan_007.mp4"
 
@@ -47,34 +46,48 @@ buffer = 10
 with open(output_file, "w") as f:
     f.write("theta,tx,ty\n")
 
-fused_image = np.copy(cv2.cvtColor(video_data[0], cv2.COLOR_BGR2GRAY))
-initial_transform = None
-initial_offset = None
+fused_image = np.array(cv2.cvtColor(video_data[0], cv2.COLOR_BGR2GRAY))
+initial_offset = np.array([0, 0])
+step = 16
+threshold = 5
 
-for i in tqdm(range(1, 500)):
+for i in tqdm(range(step, video_data.shape[0], step)):
     # Track to avoid mixing up the frames
-    fixed_index = i
-    moving_index = i - 1
+    fixed_index = i - step
+    moving_index = i
 
-    fixed = video_data[fixed_index]
-    moving = fused_image
+    fixed = fused_image
+    moving = video_data[moving_index]
 
     # Convert to grayscale
-    fixed_gray = cv2.cvtColor(fixed, cv2.COLOR_BGR2GRAY)
-    moving_gray = moving
-    # fixed_mask = np.ones_like(fixed_gray, dtype=np.uint8)
-    # moving_mask = np.ones_like(moving_gray, dtype=np.uint8)
-    #
+    # fixed_gray = cv2.cvtColor(fixed, cv2.COLOR_BGR2GRAY)
+    # fixed_gray, _ = transform_image(fixed_gray, offset=initial_offset)
+    fixed_gray = fixed
+    moving_gray = cv2.cvtColor(moving, cv2.COLOR_BGR2GRAY)
+    moving_gray, offset = transform_image(moving_gray, offset=initial_offset)
+    if np.any(offset != 0):
+        new_moving_shape = np.array(moving_gray.shape) + offset
+        new_moving = np.zeros(new_moving_shape, dtype=moving_gray.dtype)
+        new_moving[:moving_gray.shape[0], :moving_gray.shape[1]] = moving_gray
+        moving_gray = new_moving
+
+    # moving_gray = moving
+    fixed_mask = np.ones_like(fixed_gray, dtype=np.uint8)
+    moving_mask = np.ones_like(moving_gray, dtype=np.uint8)
+
+    fixed_mask[fixed == 0] = 0
+    moving_mask[moving_gray == 0] = 0
+
     # for j in range(num_animals):
     #     # After casting to int, nan values become int64 min value
-    #     if (
-    #         np.any(min_y[fixed_index, j] < 0)
-    #         or np.any(min_x[fixed_index, j] < 0)
-    #         or np.any(max_y[fixed_index, j] < 0)
-    #         or np.any(max_x[fixed_index, j] < 0)
-    #     ):
-    #         continue
-    #
+    #     # if (
+    #     #     np.any(min_y[fixed_index, j] < 0)
+    #     #     or np.any(min_x[fixed_index, j] < 0)
+    #     #     or np.any(max_y[fixed_index, j] < 0)
+    #     #     or np.any(max_x[fixed_index, j] < 0)
+    #     # ):
+    #     #     continue
+    # #
     #     if (
     #         np.any(min_y[moving_index, j] < 0)
     #         or np.any(min_x[moving_index, j] < 0)
@@ -82,23 +95,23 @@ for i in tqdm(range(1, 500)):
     #         or np.any(max_x[moving_index, j] < 0)
     #     ):
     #         continue
-    #
+    # #
     #     # Mask out the area around the animal
-    #     fixed_mask[
-    #         min_y[fixed_index, j] - buffer : max_y[fixed_index, j] + buffer,
-    #         min_x[fixed_index, j] - buffer : max_x[fixed_index, j] + buffer,
-    #     ] = 0
+    #     # fixed_mask[
+    #     #     min_y[fixed_index, j] - buffer : max_y[fixed_index, j] + buffer,
+    #     #     min_x[fixed_index, j] - buffer : max_x[fixed_index, j] + buffer,
+    #     # ] = 0
     #     moving_mask[
     #         min_y[moving_index, j] - buffer : max_y[moving_index, j] + buffer,
     #         min_x[moving_index, j] - buffer : max_x[moving_index, j] + buffer,
     #     ] = 0
 
     parameters = run_registration(
-        moving_gray,
-        fixed_gray,
-        param_path,
-        # moving_mask=moving_mask,
-        # fixed_mask=fixed_mask,
+        moving_image=moving_gray,
+        fixed_image=fixed_gray,
+        registration_parameter_path=param_path,
+        moving_mask=moving_mask,
+        fixed_mask=fixed_mask,
     )
 
     # Regular expression to find the TransformParameters line
@@ -106,18 +119,32 @@ for i in tqdm(range(1, 500)):
     input_string = str(parameters)
     # Search for the pattern in the input string
     match = re.search(pattern, input_string)
-
     if match:
         # Extract the numbers and convert them to floats
         transform_parameters = list(map(float, match.group(1).split()))
         with open(output_file, "a") as f:
             f.write(",".join(map(str, transform_parameters)))
             f.write("\n")
-        transformed_frame, orig_offset = transform_image(fixed_gray, theta=transform_parameters[0], offset=(transform_parameters[1], transform_parameters[2]))
-        new_image_shape = np.max(np.array([moving.shape, transformed_frame.shape]), axis=0)
+        # transform_matrix = np.vstack([np.array(transform_parameters).reshape((3,2)).T, [0, 0, 1]])
+        # transformed_frame, orig_offset = transform_image(moving_gray, transform_matrix)
+        offset = -int(transform_parameters[2]), -int(transform_parameters[1])
+        # print(f"\n{transform_parameters}")
+        transformed_frame, orig_offset = transform_image(moving_gray, theta=transform_parameters[0], offset=offset)
+        # print(fixed_gray.shape, transformed_frame.shape, orig_offset)
+        fixed_gray_shape = np.array(fixed_gray.shape) + orig_offset
+        new_image_shape = np.max(np.array([fixed_gray_shape, transformed_frame.shape]), axis=0)
+        # print(new_image_shape)
         fused_image = np.zeros(new_image_shape, dtype=fused_image.dtype)
-        fused_image[0:transformed_frame.shape[0], 0:transformed_frame.shape[1]] = transformed_frame
-        fused_image[orig_offset[0]:orig_offset[0] + moving_gray.shape[0], orig_offset[1]:orig_offset[1] + moving_gray.shape[1]] = moving
+        fused_image[:transformed_frame.shape[0], :transformed_frame.shape[1]] = transformed_frame
+        fused_image[orig_offset[0]:orig_offset[0] + fixed_gray.shape[0], orig_offset[1]:orig_offset[1] + fixed_gray.shape[1]][
+            fused_image[orig_offset[0]:orig_offset[0] + fixed_gray.shape[0], orig_offset[1]:orig_offset[1] + fixed_gray.shape[1]] < threshold
+        ] = fixed_gray[fused_image[orig_offset[0]:orig_offset[0] + fixed_gray.shape[0], orig_offset[1]:orig_offset[1] + fixed_gray.shape[1]] < threshold]
+
+        initial_offset = initial_offset + offset
+        # fused_image[orig_offset[0]:orig_offset[0] + fixed_gray.shape[0], orig_offset[1]:orig_offset[1] + fixed_gray.shape[1]] = fixed_gray
+        # fused_image[:transformed_frame.shape[0], :transformed_frame.shape[1]][
+        #     fused_image[:transformed_frame.shape[0], :transformed_frame.shape[1]] < threshold] = transformed_frame[
+        #     fused_image[:transformed_frame.shape[0], :transformed_frame.shape[1]] < threshold]
     else:
         print("TransformParameters not found")
 

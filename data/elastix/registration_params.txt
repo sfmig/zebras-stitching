@@ -17,21 +17,21 @@
 
 (ErodeMask "false" )
 
-(NumberOfResolutions 2)
+(NumberOfResolutions 4)
 
 (HowToCombineTransforms "Compose")
 (AutomaticTransformInitialization "true")
 (AutomaticScalesEstimation "true")
 
 (WriteTransformParametersEachIteration "false")
-(WriteResultImage "true")
+(WriteResultImage "false")
 (ResultImageFormat "tiff")
 (CompressResultImage "false")
 (WriteResultImageAfterEachResolution "false")
 (ShowExactMetricValue "false")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 200 )
+(MaximumNumberOfIterations 600 )
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
@@ -42,11 +42,11 @@
 
 //Number of spatial samples used to compute the mutual information in each resolution level:
 (ImageSampler "RandomCoordinate")
-(UseRandomSampleRegion "false")
-(NumberOfSpatialSamples 3000 )
+(NumberOfSpatialSamples 4000 )
 (NewSamplesEveryIteration "true")
 (CheckNumberOfSamples "true")
 (MaximumNumberOfSamplingAttempts 10)
+(RequiredRatioOfValidSamples 0.05)
 
 
 //Order of B-Spline interpolation used for applying the final deformation:
