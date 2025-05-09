@@ -11,6 +11,7 @@ import pandas as pd
 import sleap_io as sio
 import xarray as xr
 from movement.io import load_poses, save_poses
+from movement.plots import plot_centroid_trajectory
 from datetime import datetime
 
 from skimage.transform import warp
@@ -25,8 +26,8 @@ data_dir = repo_root / "data"
 transforms_dir = data_dir / "elastix"
 
 # Wrapped data 
-filename = Path("20250325_2228_id.slp")
-file_path = data_dir / filename 
+filename = Path("21Jan_007_tracked_trees_long-and-slow.analysis.h5")
+file_path = data_dir / filename
 
 # Elastix transforms
 transforms_file = transforms_dir / "out_euler_frame_masked.csv"
@@ -199,8 +200,11 @@ position_array_ICS0 = (
 )
 
 # undo the reordering dimensions required for broadcasting
-position_array_ICS0 = np.moveaxis(position_array_ICS0, [0, 1], [-2, -1]).squeeze()
 
+position_array_ICS0 = np.moveaxis(position_array_ICS0, [0, 1], [-2, -1]).squeeze(axis=-2)
+print(position_array_ICS0.shape)
+
+# %%
 # format the result as xarray
 position_array_ICS0 = xr.DataArray(
     position_array_ICS0,
@@ -237,6 +241,21 @@ ax.set_aspect("equal")
 ax.invert_yaxis()
 ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
+
+# %% 
+# Plot trajectories per individual but colored by time
+fig, ax = plt.subplots()
+c = position_array_ICS0.time.values
+for i, ind in enumerate(position_array_ICS0.individuals):
+    plot_centroid_trajectory(
+        position_array_ICS0,
+        individual=ind,
+        ax=ax,
+        c=c,
+        s=1,
+    )
+
+ax.set_aspect("equal")
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
