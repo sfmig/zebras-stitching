@@ -7,3 +7,5 @@ tifffile
 tqdm
 ipykernel
 ipympl
+boxmot
+deepforest
