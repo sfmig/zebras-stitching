@@ -10,7 +10,7 @@ import scipy.ndimage as ndimage
 from PIL.Image import Image
 
 
-def transform_image(image: npt.NDArray, matrix: Optional[npt.NDArray] = None, theta: float = 0.0, offset: Tuple[int, int] = (0, 0)) -> Tuple[npt.NDArray, npt.NDArray]:
+def transform_image(image: npt.NDArray, matrix: Optional[npt.NDArray] = None, theta: float = 0.0, offset: Tuple[float, float] = (0, 0)) -> Tuple[npt.NDArray, npt.NDArray]:
     """
     Transform the image by rotating it by theta degrees and translating it by offset.
 

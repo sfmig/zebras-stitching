@@ -11,17 +11,16 @@
 (Interpolator "LinearInterpolator")
 (Metric "AdvancedMattesMutualInformation")
 (Optimizer "AdaptiveStochasticGradientDescent")
-(SP_A 80)
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
 (Transform "EulerTransform")
 
 (ErodeMask "true" )
 
-(NumberOfResolutions 1)
+(NumberOfResolutions 2)
 
 (HowToCombineTransforms "Compose")
-(AutomaticTransformInitialization "false")
+(AutomaticTransformInitialization "true")
 (AutomaticScalesEstimation "true")
 
 (WriteTransformParametersEachIteration "false")
@@ -32,7 +31,7 @@
 (ShowExactMetricValue "false")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 100)
+(MaximumNumberOfIterations 200)
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )
@@ -43,7 +42,7 @@
 
 //Number of spatial samples used to compute the mutual information in each resolution level:
 (ImageSampler "RandomCoordinate")
-(NumberOfSpatialSamples 10000 )
+(NumberOfSpatialSamples 3000 )
 (NewSamplesEveryIteration "true")
 (CheckNumberOfSamples "true")
 (MaximumNumberOfSamplingAttempts 10)

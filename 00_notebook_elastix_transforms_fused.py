@@ -14,7 +14,6 @@ from utils_rotate import transform_image
 from tqdm import tqdm
 
 # %%
-
 # Load video into a numpy array with shape (num_frames, height, width)
 
 video_path = "21Jan_007.mp4"
@@ -38,32 +37,6 @@ min_x = np.min(position_numpy[:, 0, :, :], axis=1).round().astype(int)
 min_y = np.min(position_numpy[:, 1, :, :], axis=1).round().astype(int)
 min_y.shape, max_y.shape, min_x.shape, max_x.shape
 
-#%%
-mask_array = np.ones(video_data.shape[:-1], dtype=np.uint8)
-print(mask_array.shape)
-#%%
-buffer = 5
-for i in tqdm(range(video_data.shape[0])):
-    for j in range(num_animals):
-        # After casting to int, nan values become int64 min value
-        if (
-                np.any(min_y[i, j] < 0)
-                or np.any(min_x[i, j] < 0)
-                or np.any(max_y[i, j] < 0)
-                or np.any(max_x[i, j] < 0)
-        ):
-            continue
-
-        mask_array[i,
-            min_y[i, j] - buffer : max_y[i, j] + buffer,
-            min_x[i, j] - buffer : max_x[i, j] + buffer,
-        ] = 0
-
-#%%
-# Save the mask to a file
-
-tifffile.imwrite('masks.tiff', mask_array, bigtiff=True, compression='zlib')
-
 # %%
 param_path = Path("./data/elastix/registration_params.txt")
 output_file = Path("out_test.csv")
@@ -72,8 +45,9 @@ buffer = 10
 with open(output_file, "w") as f:
     f.write("theta,tx,ty\n")
 
+transform_array = np.zeros((video_data.shape[0], 3), dtype=np.float32)
 initial_offset = np.array([0, 0])
-step = 8
+step = 1
 initial_frame = step * 0
 threshold = 5
 fused_image = np.array(cv2.cvtColor(video_data[initial_frame], cv2.COLOR_BGR2GRAY))
@@ -104,7 +78,7 @@ for i in tqdm(range(initial_frame, (step * 100) + 1, step)):
     fixed_mask[fixed_gray == 0] = 0
     moving_mask[moving_gray == 0] = 0
 
-    mask_offset = np.where(initial_offset > 0, initial_offset, 0)
+    mask_offset = np.where(initial_offset > 0, initial_offset, 0).astype(np.int32)
     for j in range(num_animals):
         # After casting to int, nan values become int64 min value
         if (
@@ -114,15 +88,6 @@ for i in tqdm(range(initial_frame, (step * 100) + 1, step)):
                 or np.any(max_x[fixed_index, j] < 0)
         ):
             continue
-
-        # if (
-        #     np.any(min_y[moving_index, j] < 0)
-        #     or np.any(min_x[moving_index, j] < 0)
-        #     or np.any(max_y[moving_index, j] < 0)
-        #     or np.any(max_x[moving_index, j] < 0)
-        # ):
-        #     continue
-        #
         # Mask out the area around the animal
         min_y_adj, max_y_adj = min_y[fixed_index, j] + mask_offset[0], max_y[fixed_index, j] + mask_offset[0]
         min_x_adj, max_x_adj = min_x[fixed_index, j] + mask_offset[1], max_x[fixed_index, j] + mask_offset[1]
@@ -147,11 +112,7 @@ for i in tqdm(range(initial_frame, (step * 100) + 1, step)):
     if match:
         # Extract the numbers and convert them to floats
         transform_parameters = list(map(float, match.group(1).split()))
-        with open(output_file, "a") as f:
-            f.write(",".join(map(str, transform_parameters)))
-            f.write("\n")
-
-        offset = int(transform_parameters[2]), int(transform_parameters[1])
+        offset = (transform_parameters[2], transform_parameters[1])
         transformed_frame, orig_offset = transform_image(fixed_gray, theta=transform_parameters[0], offset=offset)
 
         moving_gray_shape = np.array(moving_gray.shape) + orig_offset
@@ -170,8 +131,16 @@ for i in tqdm(range(initial_frame, (step * 100) + 1, step)):
         # ] = moving_gray[fused_image[orig_offset[0]:orig_offset[0] + moving_gray.shape[0], orig_offset[1]:orig_offset[1] + moving_gray.shape[1]] < threshold]
 
         initial_offset = initial_offset + offset
+        transform_array[i][0] = transform_parameters[0]
+        transform_array[i][1:3] = initial_offset[::-1]
+
+        if np.any(orig_offset != 0):
+            transform_array[0:i-1, 1:3] = transform_array[0:i-1, 1:3] + orig_offset
+
     else:
         print("TransformParameters not found")
+
+np.savetxt('transforms.csv', transform_array, delimiter=',', header='theta,tx,ty', comments='')
 
 tifffile.imwrite("test.tiff", fused_image)
 tifffile.imwrite("fixed.tiff", fixed_gray)
