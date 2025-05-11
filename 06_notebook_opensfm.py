@@ -4,22 +4,24 @@
 Requires launching this in the opendm container.
 """
 # %%%%%%
+from datetime import datetime
 import numpy as np
 import trimesh
 import xarray as xr
 from opensfm import dataset # requires launching this in the opendm container
-from movement.io import load_poses
+from movement.io import load_poses, save_poses
+from movement.io.validators import ValidPoseTracks
 import matplotlib.pyplot as plt
-
+from pathlib import Path
 %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-opensfm_dir = "/workspace/datasets/project/opensfm"
-mesh_path = (
+opensfm_dir = Path("/workspace/datasets/project/opensfm")
+mesh_path = Path(
     "/workspace/datasets/project/odm_meshing/odm_25dmesh.ply"
 )
 
-points_2d_slp = (
+points_2d_slp = Path(
     "/workspace/zebras-stitching/data/20250325_2228_id.slp"
 )
 
@@ -152,11 +154,12 @@ H_pixel2norm = np.linalg.inv(H_norm_to_pixel_coords(image_width, image_height))
 
 # %%
 # Loop thru frames
-
+list_frame_idx = []
 list_3D_points_per_frame = []
 pt2D_pixels_homogeneous_shape = position_homogeneous.sel(time=0).shape 
 
 for frame_filename in list_frame_filenames: 
+
 
     # Get intrinsic and extrinsic camera parameters for this frame
     shot = recs.shots[frame_filename]
@@ -167,6 +170,7 @@ for frame_filename in list_frame_filenames:
     # (M,3 array, with M = total number of points)
     # (pixel coordinates = not normalised)
     frame_idx = int(frame_filename.split(".")[0])
+    list_frame_idx.append(frame_idx)
     pt2D_pixels_homogeneous = position_homogeneous.sel(time=frame_idx).values.reshape(-1,3)  
 
     # Compute *normalised* coordinates in camera coordinate system (aka bearings)
@@ -205,6 +209,49 @@ for frame_filename in list_frame_filenames:
 pt3D_world_all = np.stack(list_3D_points_per_frame, axis=0)
 
 print(pt3D_world_all.shape)  # frame, individual, kpt, space
+
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Export as movement 0.0.5 dataset
+
+ds_export = xr.Dataset(
+    data_vars=dict(
+        pose_tracks=(ds.pose_tracks.dims, pt3D_world_all),
+        confidence=(ds.confidence.dims, ds.confidence.sel(time=list_frame_idx).values),
+    ),
+    coords=dict(
+        time=list_frame_idx,
+        individuals=ds.individuals.values,
+        keypoints=ds.keypoints.values,
+        space=['x', 'y', 'z'],
+    ),
+    attrs={"source_file": ""},
+)
+
+# ds_export = ValidPoseTracks(ds_export)
+
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+slp_file = save_poses.to_dlc_file(
+    ds_export,
+    f"{Path(points_2d_slp).stem}_sfm_3d_unwrapped_{timestamp}.h5",
+)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Export as numpy array
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+np.savez(
+    Path("data") / f"{Path(points_2d_slp).stem}_sfm_3d_unwrapped_{timestamp}.npz",
+    position=pt3D_world_all,
+    confidence=ds.confidence.sel(time=list_frame_idx).values,
+    dimensions=np.array(['time', 'individuals', 'keypoints', 'space']),  # following position.shape
+    time=list_frame_idx,
+    individuals=ds.individuals.values,
+    keypoints=ds.keypoints.values,
+    space=['x', 'y', 'z'],
+)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot 3D points
@@ -245,6 +292,5 @@ ax.set_aspect('equal')
 ax.set_xlabel('x')
 ax.set_ylabel('y')
 ax.set_zlabel('z')
-
 
 
