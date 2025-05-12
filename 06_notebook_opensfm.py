@@ -106,18 +106,22 @@ def ray_plane_intersection(ray_origins, ray_directions_unit, plane_normal, plane
 # Read mesh and fit a plane to it
 mesh = trimesh.load(mesh_path)
 
-# Fit a plane to the mesh vertices
-vertices = mesh.vertices
-center = vertices.mean(axis=0)  # a point on the plane
+def compute_plane_normal_and_center(mesh):
+    # Fit a plane to the mesh vertices
+    vertices = mesh.vertices
+    center = vertices.mean(axis=0)  # a point on the plane
 
 
-# Get the covariance matrix
-cov = np.cov(vertices.T)
-# Get the eigenvalues and eigenvectors
-eigenvals, eigenvecs = np.linalg.eigh(cov)
-# The normal vector is the eigenvector corresponding to the smallest eigenvalue
-normal = eigenvecs[:, 0]
+    # Get the covariance matrix
+    cov = np.cov(vertices.T)
+    # Get the eigenvalues and eigenvectors
+    eigenvals, eigenvecs = np.linalg.eigh(cov)
+    # The normal vector is the eigenvector corresponding to the smallest eigenvalue
+    normal = eigenvecs[:, 0]
 
+    return normal, center
+
+normal, center = compute_plane_normal_and_center(mesh)
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -146,13 +150,13 @@ list_frame_filenames = sorted(list_frame_filenames)
 image_width = recs.shots[list_frame_filenames[0]].camera.width
 image_height = recs.shots[list_frame_filenames[0]].camera.height
 
-# Get conversion matrix from normalised to pixel coordinates
+# Get H_pixel2norm, conversion matrix from pixel to normalised coordinates
 # [Note: I think all opensfm matrices return results in normalised coordinates
 # But that is fine because the mesh is also in normalised coordinates]
 H_pixel2norm = np.linalg.inv(H_norm_to_pixel_coords(image_width, image_height))
 
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Loop thru frames
 list_frame_idx = []
 list_3D_points_per_frame = []
@@ -160,11 +164,10 @@ pt2D_pixels_homogeneous_shape = position_homogeneous.sel(time=0).shape
 
 for frame_filename in list_frame_filenames: 
 
-
     # Get intrinsic and extrinsic camera parameters for this frame
     shot = recs.shots[frame_filename]
-    cam = shot.camera # instrinsic matrix?
-    pose = shot.pose # extrinsic
+    cam = shot.camera # camera 
+    pose = shot.pose # holds extrinsic parameters
 
     # Get 2D pixel & **homogeneous** coordinates of points at this frame
     # (M,3 array, with M = total number of points)
@@ -174,22 +177,23 @@ for frame_filename in list_frame_filenames:
     pt2D_pixels_homogeneous = position_homogeneous.sel(time=frame_idx).values.reshape(-1,3)  
 
     # Compute *normalised* coordinates in camera coordinate system (aka bearings)
+    # K is the camera intrinsic matrix, transforms from CCS -> ICS
+    # inv(K) transforms from ICS -> CCS
     pt2D_bearings_homogeneous_ccs = (
         np.linalg.inv(cam.get_K_in_pixel_coordinates(image_width, image_height)) 
         @ pt2D_pixels_homogeneous.T
     ).T  # returns normalised coordinates!
 
-    # Compute depth from intersection of ray with mesh
-    # 1- compute free vector in world coordinates
+    # Compute depth from intersection of bearings with plane
+    # 1- compute free bearing vectors in world coordinates
     bearings_rotated_to_wcs = (pose.get_R_cam_to_world() @ pt2D_bearings_homogeneous_ccs.T).T
     bearings_rotated_to_wcs = bearings_rotated_to_wcs / np.linalg.norm(bearings_rotated_to_wcs, axis=1, keepdims=True)
 
-    # 2- compute intersection with mesh
+    # 2- compute intersection with plane
     # exclude nans
     pt3D_world_w_nans = np.nan * np.ones_like(pt2D_pixels_homogeneous)
     slc_nan_bearings = np.isnan(bearings_rotated_to_wcs).any(axis=1)
 
-    # In your main loop, replace the mesh.ray.intersects_location call with:
     pt3D_world_normalized = ray_plane_intersection(
         ray_origins=np.tile(pose.get_t_cam_to_world(), (sum(~slc_nan_bearings), 1)),
         ray_directions_unit=bearings_rotated_to_wcs[~slc_nan_bearings, :],
@@ -201,7 +205,7 @@ for frame_filename in list_frame_filenames:
     pt3D_world_w_nans[~slc_nan_bearings, :] = pt3D_world_normalized
     pt3D_world_w_nans = pt3D_world_w_nans.reshape(pt2D_pixels_homogeneous_shape)
 
-    # append
+    # append to list per frame
     list_3D_points_per_frame.append(pt3D_world_w_nans)
 
 
@@ -211,36 +215,8 @@ pt3D_world_all = np.stack(list_3D_points_per_frame, axis=0)
 print(pt3D_world_all.shape)  # frame, individual, kpt, space
 
 
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Export as movement 0.0.5 dataset
-
-ds_export = xr.Dataset(
-    data_vars=dict(
-        pose_tracks=(ds.pose_tracks.dims, pt3D_world_all),
-        confidence=(ds.confidence.dims, ds.confidence.sel(time=list_frame_idx).values),
-    ),
-    coords=dict(
-        time=list_frame_idx,
-        individuals=ds.individuals.values,
-        keypoints=ds.keypoints.values,
-        space=['x', 'y', 'z'],
-    ),
-    attrs={"source_file": ""},
-)
-
-# ds_export = ValidPoseTracks(ds_export)
-
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-slp_file = save_poses.to_dlc_file(
-    ds_export,
-    f"{Path(points_2d_slp).stem}_sfm_3d_unwrapped_{timestamp}.h5",
-)
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Export as numpy array
+# Export as a dict of numpy arrays
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 np.savez(
     Path("data") / f"{Path(points_2d_slp).stem}_sfm_3d_unwrapped_{timestamp}.npz",
@@ -253,6 +229,10 @@ np.savez(
     space=['x', 'y', 'z'],
 )
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Export transforms per keyframe as csv file
+
+# Get transforms
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot 3D points
 fig = plt.figure()
@@ -292,5 +272,4 @@ ax.set_aspect('equal')
 ax.set_xlabel('x')
 ax.set_ylabel('y')
 ax.set_zlabel('z')
-
 
