@@ -24,6 +24,8 @@ mesh_path = Path("/workspace/datasets/project/odm_meshing/odm_25dmesh.ply")
 
 points_2d_slp = Path("/workspace/zebras-stitching/data/20250325_2228_id.slp")
 
+orthophoto_corners = Path("/workspace/datasets/project/odm_orthophoto/odm_orthophoto_corners.txt")
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -54,7 +56,6 @@ def H_norm_to_pixel_coords(w, h):
     return np.array([[s, 0, (w - 1) / 2], [0, s, (h - 1) / 2], [0, 0, 1]])
 
 
-# Replace the plane mesh creation and ray intersection with this mathematical solution:
 def ray_plane_intersection(ray_origins, ray_directions_unit, plane_normal, plane_point):
     """
     Compute the intersection points of an array of rays with a plane.
@@ -220,6 +221,14 @@ for frame_filename in list_frame_filenames:
         plane_point=center,
     )
 
+    # # Slower:
+    # # from skspatial.objects import Line, Plane
+    # plane = Plane(normal=normal, point=center)
+    # list_rays = [Line(point=pose.get_t_cam_to_world(), direction=b) for b in bearings_rotated_to_wcs[~slc_nan_bearings, :]]
+    # pt3D_world_normalized = np.array(
+    #     [plane.intersect_line(ray) for ray in list_rays]
+    # )
+
     # Reshape to original shape
     pt3D_world_w_nans[~slc_nan_bearings, :] = pt3D_world_normalized
     pt3D_world_w_nans = pt3D_world_w_nans.reshape(pt2D_pixels_homogeneous_shape)
@@ -268,10 +277,69 @@ with open(csv_path, "w") as f:
         quat = Rotation.from_matrix(R).as_quat()  # returns [x, y, z, w]
         writer.writerow([f, *quat, *t])
 
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Compute orthophoto corners in the plane
+orthophoto_corners_2d = np.loadtxt(orthophoto_corners).reshape(-1, 2)
 
+# add additional corners
+orthophoto_corners_2d = np.vstack(
+    [orthophoto_corners_2d, np.diag(orthophoto_corners_2d), np.array(orthophoto_corners_2d[[1,0],[0,1]])]
+)
+
+orthophoto_corners_3d = np.zeros((orthophoto_corners_2d.shape[0], 3))
+orthophoto_corners_3d[:, 0] = orthophoto_corners_2d[:, 0]
+orthophoto_corners_3d[:, 1] = orthophoto_corners_2d[:, 1]
+orthophoto_corners_3d[:, 2] = (- np.dot(normal[:2], (orthophoto_corners_2d - center[:2]).T) / normal[2]) + center[2]
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Express points in a basis that spans the plane
+
+corner_xmax_ymax = orthophoto_corners_3d[-1,:]
+corner_xmin_ymin = orthophoto_corners_3d[0,:]
+
+x_versor = corner_xmax_ymax - corner_xmin_ymin
+x_versor = x_versor / np.linalg.norm(x_versor)
+
+y_versor = np.cross(normal, x_versor)
+y_versor = y_versor / np.linalg.norm(y_versor)
+
+z_versor = normal
+
+# versors as rows
+Q_world2plane = np.vstack([x_versor, y_versor, z_versor])
+
+# express orthophoto corners in the plane basis
+# z-coord should be 0
+orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - center).T).T
+
+points_3d_plane = (
+    Q_world2plane.T # (3,3)
+    @ (pt3D_world_all - center).T[None].T # 316, 44, 2, 3, 1
+    # we move the array axes to the end as per numpy.matmul convention
+    # https://numpy.org/doc/2.0/reference/generated/numpy.matmul.html --> Notes
+).squeeze()
+
+print(np.nanmax(points_3d_plane[:,:,:,2]))  # 0.049099387074392084, should be 0, ok?
+print(np.nanmin(points_3d_plane[:,:,:,2]))  # -0.058999756601712514, should be 0, ok?
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Export as a dict of numpy arrays
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+np.savez(
+    Path("data") / f"{Path(points_2d_slp).stem}_sfm_3d_unwrapped_plane_{timestamp}.npz",
+    position=points_3d_plane[:,:,:,0:2],
+    confidence=ds.confidence.sel(time=list_frame_idx).values,
+    dimensions=np.array(["time", "individuals", "keypoints", "space"]),
+    # following position.shape as in movement 0.0.5
+    time=list_frame_idx,
+    individuals=ds.individuals.values,
+    keypoints=ds.keypoints.values,
+    space=["x", "y"],
+)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot 3D points
+
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
 color_per_frame = plt.cm.viridis(np.linspace(0, 1, pt3D_world_all.shape[0]))
@@ -304,6 +372,14 @@ for individual_idx in range(pt3D_world_all.shape[1]):
         #     c=color_per_individual[individual_idx]
         # )
 
+# plot orthophoto corners
+ax.scatter(
+    orthophoto_corners_3d[:, 0],
+    orthophoto_corners_3d[:, 1],
+    orthophoto_corners_3d[:, 2],
+    'o',
+    c='red'
+)
 # plt.legend()
 ax.set_aspect("equal")
 ax.set_xlabel("x")
