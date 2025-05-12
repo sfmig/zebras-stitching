@@ -294,10 +294,10 @@ orthophoto_corners_3d[:, 2] = (- np.dot(normal[:2], (orthophoto_corners_2d - cen
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Express points in a basis that spans the plane
 
-corner_xmax_ymax = orthophoto_corners_3d[-1,:]
+corner_xmax_ymin = orthophoto_corners_3d[-1,:]  # origin of the plane coordinate system
 corner_xmin_ymin = orthophoto_corners_3d[0,:]
 
-x_versor = corner_xmax_ymax - corner_xmin_ymin
+x_versor = corner_xmin_ymin - corner_xmax_ymin
 x_versor = x_versor / np.linalg.norm(x_versor)
 
 y_versor = np.cross(normal, x_versor)
@@ -310,18 +310,17 @@ Q_world2plane = np.vstack([x_versor, y_versor, z_versor])
 
 # express orthophoto corners in the plane basis
 # z-coord should be 0
-orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - center).T).T
+orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - corner_xmax_ymin).T).T
 
 points_3d_plane = (
-    Q_world2plane.T # (3,3)
-    @ (pt3D_world_all - center).T[None].T # 316, 44, 2, 3, 1
+    Q_world2plane # (3,3)
+    @ (pt3D_world_all - corner_xmax_ymin).T[None].T # 316, 44, 2, 3, 1
     # we move the array axes to the end as per numpy.matmul convention
     # https://numpy.org/doc/2.0/reference/generated/numpy.matmul.html --> Notes
 ).squeeze()
 
-print(np.nanmax(points_3d_plane[:,:,:,2]))  # 0.049099387074392084, should be 0, ok?
-print(np.nanmin(points_3d_plane[:,:,:,2]))  # -0.058999756601712514, should be 0, ok?
-
+print(np.nanmax(points_3d_plane[:,:,:,2]))  # should be 0
+print(np.nanmin(points_3d_plane[:,:,:,2]))  # should be 0
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Export as a dict of numpy arrays
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
