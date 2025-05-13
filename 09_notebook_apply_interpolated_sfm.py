@@ -1,0 +1,281 @@
+"""
+Apply the interpolated SfM transforms to the 2D trajectories.
+
+To use with movement 0.5.1 (i.e., not inside container)
+"""
+
+# %%
+from datetime import datetime
+from pathlib import Path
+import json
+import numpy as np
+import pandas as pd
+import trimesh
+from movement.io import load_poses, save_poses
+from scipy.spatial.transform import Rotation as R
+from utils import (
+    compute_H_norm_to_pixel_coords,
+    compute_plane_normal_and_center,
+    position_array_to_homogeneous,
+    ray_plane_intersection,
+    get_camera_intrinsic_matrix,
+    get_orthophoto_corners
+)
+
+import matplotlib.pyplot as plt
+%matplotlib widget
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Input data
+
+data_dir = Path("data")
+sfm_interpolated_file = data_dir / "20250325_2228_id_sfm_transforms_20250513_203035_interp_20250513_230824.csv"
+points_2d_slp = data_dir / "20250325_2228_id.slp"
+
+# ODM data
+odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
+mesh_path = odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
+orthophoto_corners = odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
+camera_intrinsics = odm_dataset_dir / "cameras.json"
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Read the transforms file
+df_input = pd.read_csv(sfm_interpolated_file)
+
+# Read rotations as dict
+rots_cam_to_world_interp = {
+    frame_idx: R.from_rotvec(rotvec_xyz)
+    for frame_idx, rotvec_xyz in zip(
+        df_input["frame_index"].values,
+        df_input[
+            [
+                "R_cam_to_world_as_rotvec_x",
+                "R_cam_to_world_as_rotvec_y",
+                "R_cam_to_world_as_rotvec_z",
+            ]
+        ].values
+    )
+}
+
+# Read translations as dict
+t_cam_to_world_interp = {
+    frame_idx: t_xyz
+    for frame_idx, t_xyz in zip(
+        df_input["frame_index"].values,
+        df_input[
+            ["t_cam_to_world_x", "t_cam_to_world_y", "t_cam_to_world_z"]
+        ].values
+    )
+}
+
+print(len(rots_cam_to_world_interp))
+print(len(t_cam_to_world_interp))
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Read mesh and fit a plane to it
+mesh = trimesh.load(mesh_path)
+
+plane_normal, plane_center = compute_plane_normal_and_center(mesh)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Read 2D trajectories
+ds = load_poses.from_sleap_file(points_2d_slp)
+
+position = ds.position  # as xarray data array, time in frames
+position_homogeneous = position_array_to_homogeneous(position)
+position_homogeneous_shape = (
+    position_homogeneous.shape
+)  # time, space (homogeneous), kpts, individuals
+
+print(position_homogeneous)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Camera parameters
+# TODO: check values with opensfm
+# TODO: should be in pixel coords!!
+K_camera_intrinsic = get_camera_intrinsic_matrix(camera_intrinsics, in_pixel_coords=True)
+
+# Get camera width and height
+with open(camera_intrinsics, "r") as f:
+    cameras = json.load(f)
+image_width = cameras["  1920 1080 brown 0.85"]["width"]
+image_height = cameras["  1920 1080 brown 0.85"]["height"]
+
+# Get H_pixel2norm, conversion matrix from pixel to normalised coordinates
+H_pixel2norm = np.linalg.inv(compute_H_norm_to_pixel_coords(image_width, image_height))
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Apply SfM interpolated transforms to 2D points
+list_3D_points_per_frame = []
+shape_with_space_last = position_homogeneous.sel(time=0).T.shape  # space dim last
+
+for frame_idx in df_input["frame_index"].values:
+
+    # Get 2D (unnormalied) pixel **homogeneous** coordinates of points at this frame
+    # (M,3 array, with M = total number of points)
+    pt2D_pixels_homogeneous = position_homogeneous.sel(time=frame_idx).values.T.reshape(
+        -1, 3
+    ) # transpose to get space dim last
+
+    # Compute *normalised* coordinates in camera coordinate system (aka bearings)
+    # K is the camera intrinsic matrix, transforms from CCS -> ICS
+    # inv(K) transforms from ICS -> CCS
+    pt2D_bearings_homogeneous_ccs = (
+        np.linalg.inv(K_camera_intrinsic)  # TODO: should be in pixel coords!
+        @ pt2D_pixels_homogeneous.T
+    ).T  # returns normalised coordinates!
+
+    # Compute depth from intersection of bearings with plane
+    # 1- compute free bearing vectors in world coordinates
+    bearings_rotated_to_wcs = (
+        rots_cam_to_world_interp[frame_idx].as_matrix() 
+        @ pt2D_bearings_homogeneous_ccs.T
+    ).T
+    bearings_rotated_to_wcs = bearings_rotated_to_wcs / np.linalg.norm(
+        bearings_rotated_to_wcs, axis=1, keepdims=True
+    )
+
+    # 2- compute intersection with plane
+    # exclude nans
+    pt3D_world_w_nans = np.nan * np.ones_like(pt2D_pixels_homogeneous)
+    slc_nan_bearings = np.isnan(bearings_rotated_to_wcs).any(axis=1)
+
+    pt3D_world_normalized = ray_plane_intersection(
+        ray_origins=np.tile(
+            t_cam_to_world_interp[frame_idx], 
+            (sum(~slc_nan_bearings), 1)
+        ),
+        ray_directions_unit=bearings_rotated_to_wcs[~slc_nan_bearings, :],
+        plane_normal=plane_normal,
+        plane_point=plane_center,
+    )
+
+    # Reshape to original shape
+    pt3D_world_w_nans[~slc_nan_bearings, :] = pt3D_world_normalized
+    pt3D_world_w_nans = pt3D_world_w_nans.reshape(shape_with_space_last).T
+
+    # append to list per frame
+    list_3D_points_per_frame.append(pt3D_world_w_nans)
+
+# Concatenate all 3D points
+pt3D_world_all = np.stack(list_3D_points_per_frame, axis=0)
+
+print(pt3D_world_all.shape)  # frame, space, kpts, individuals
+
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Transform to plane basis
+
+# origin of the plane coordinate system: corner_xmax_ymin
+orthophoto_corners_3d = get_orthophoto_corners(orthophoto_corners, plane_normal, plane_center)
+corner_xmax_ymin = orthophoto_corners_3d[-1,:]  
+corner_xmin_ymin = orthophoto_corners_3d[0,:]
+
+# versors
+x_versor = corner_xmin_ymin - corner_xmax_ymin
+x_versor = x_versor / np.linalg.norm(x_versor)
+
+y_versor = np.cross(plane_normal, x_versor)
+y_versor = y_versor / np.linalg.norm(y_versor)
+
+z_versor = plane_normal
+
+# Q matrix:versors as rows
+Q_world2plane = np.vstack([x_versor, y_versor, z_versor])
+
+# express orthophoto corners in the plane basis
+# z-coord should be 0
+orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - corner_xmax_ymin).T).T
+print(orthophoto_corners_3d_plane)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Transform 3D points to plane basis and scale
+pt3D_plane_all = (
+    Q_world2plane # (3,3)
+    @ (np.moveaxis(pt3D_world_all, 1, -1) - corner_xmax_ymin)[..., None] # (6293, 2, 44, 3, 1)
+    # we move the array axes to the end as per numpy.matmul convention
+    # https://numpy.org/doc/2.0/reference/generated/numpy.matmul.html --> Notes
+).squeeze(-1)
+
+# Reorder axes to (time, space, kpts, individuals)
+pt3D_plane_all = np.moveaxis(pt3D_plane_all, -1, 1)
+
+pt3D_plane_all *= max(image_width, image_height)
+
+print(np.nanmax(pt3D_plane_all[:,2,:,:]))  # should be almost 0
+print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Save 2D and 3D points as movement dataset
+# 2D points should be visualizable in napari
+
+ds_2d_plane = load_poses.from_numpy(
+    position_array=pt3D_plane_all[:,:2,:, :], # remove z-coordinates
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated',
+)
+ds_2d_plane.attrs["source_file"] = ""
+ds_2d_plane.attrs['units'] = 'pixels'
+
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_2d_plane,
+    data_dir / f"{points_2d_slp.stem}_sfm_interp_{timestamp}.h5",
+)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot 2D points
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot 3D points
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+color_per_frame = plt.cm.viridis(np.linspace(0, 1, pt3D_world_all.shape[0]))
+color_per_individual = plt.cm.viridis(np.linspace(0, 1, pt3D_world_all.shape[1]))
+for individual_idx in range(pt3D_world_all.shape[-1]):
+    for frame_idx in range(pt3D_world_all.shape[0]):
+        # line
+        ax.plot(
+            pt3D_world_all[frame_idx, 0, :, individual_idx],
+            pt3D_world_all[frame_idx, 1, :, individual_idx],
+            pt3D_world_all[frame_idx, 2, :, individual_idx],
+            "-",
+            label=f"frame {frame_idx}",
+            c=color_per_frame[frame_idx],
+        )
+        # # head
+        # ax.scatter(
+        #     pt3D_world_all[frame_idx, 0, 0, individual_idx],
+        #     pt3D_world_all[frame_idx, 1, 0, individual_idx],
+        #     pt3D_world_all[frame_idx, 2, 0, individual_idx],
+        #     'o',
+        #     c=color_per_individual[individual_idx]
+        # )
+        # # tail
+        # ax.scatter(
+        #     pt3D_world_all[frame_idx, 0, 1, individual_idx],
+        #     pt3D_world_all[frame_idx, 1, 1, individual_idx],
+        #     pt3D_world_all[frame_idx, 2, 1, individual_idx],
+        #     '*',
+        #     c=color_per_individual[individual_idx]
+        # )
+
+# # plot orthophoto corners
+# ax.scatter(
+#     orthophoto_corners_3d[:, 0],
+#     orthophoto_corners_3d[:, 1],
+#     orthophoto_corners_3d[:, 2],
+#     'o',
+#     c='red'
+# )
+# plt.legend()
+ax.set_aspect("equal")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.set_zlabel("z")

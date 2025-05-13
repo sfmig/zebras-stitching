@@ -37,7 +37,7 @@ keyframe_rots = R.from_rotvec(
 slerp = Slerp(keyframe_times, keyframe_rots)
 
 # interpolate at required times
-times_to_interpolate = np.arange(keyframe_times[0], keyframe_times[-1], 1)
+times_to_interpolate = np.arange(keyframe_times[0], keyframe_times[-1]+1, 1)
 rots_interpolated = slerp(times_to_interpolate)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
