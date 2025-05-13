@@ -270,7 +270,18 @@ csv_path = Path("data") / f"{Path(points_2d_slp).stem}_sfm_transforms_{timestamp
 # Write csv
 with open(csv_path, "w") as f:
     writer = csv.writer(f)
-    writer.writerow(["frame_index", "R_cam_to_world_as_quat", "t_cam_to_world"])
+    writer.writerow(
+        [
+            "frame_index", 
+            "R_cam_to_world_as_quat_x", 
+            "R_cam_to_world_as_quat_y", 
+            "R_cam_to_world_as_quat_z", 
+            "R_cam_to_world_as_quat_w", 
+            "t_cam_to_world_x", 
+            "t_cam_to_world_y", 
+            "t_cam_to_world_z"
+        ]
+    )
 
     for f, R, t in zip(list_frame_idx, list_R_cam_to_world, list_t_cam_to_world):
         # Convert rotation matrix to quaternion using scipy
