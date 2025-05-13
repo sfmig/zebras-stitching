@@ -273,10 +273,9 @@ with open(csv_path, "w") as f:
     writer.writerow(
         [
             "frame_index", 
-            "R_cam_to_world_as_quat_x", 
-            "R_cam_to_world_as_quat_y", 
-            "R_cam_to_world_as_quat_z", 
-            "R_cam_to_world_as_quat_w", 
+            "R_cam_to_world_as_rotvec_x", 
+            "R_cam_to_world_as_rotvec_y", 
+            "R_cam_to_world_as_rotvec_z", 
             "t_cam_to_world_x", 
             "t_cam_to_world_y", 
             "t_cam_to_world_z"
@@ -285,8 +284,9 @@ with open(csv_path, "w") as f:
 
     for f, R, t in zip(list_frame_idx, list_R_cam_to_world, list_t_cam_to_world):
         # Convert rotation matrix to quaternion using scipy
-        quat = Rotation.from_matrix(R).as_quat()  # returns [x, y, z, w]
-        writer.writerow([f, *quat, *t])
+        # quat = Rotation.from_matrix(R).as_quat()  # returns [x, y, z, w]
+        rotvec = Rotation.from_matrix(R).as_rotvec()
+        writer.writerow([f, *rotvec, *t])
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute orthophoto corners in the plane
