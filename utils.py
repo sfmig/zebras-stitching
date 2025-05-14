@@ -1,11 +1,11 @@
-from typing import Optional
-from pathlib import Path
-import numpy.typing as npt
 import json
+from pathlib import Path
+from typing import Dict, Optional, Union
 
 import cv2
 import itk
 import numpy as np
+import numpy.typing as npt
 import xarray as xr
 
 
@@ -123,7 +123,7 @@ def compute_H_norm_to_pixel_coords(w, h):
     https://opensfm.org/docs/geometry.html
     """
     s = max(w, h)
-    return np.array([[s, 0, (w - 1) / 2], [0, s, (h - 1) / 2], [0, 0, 1]])
+    return np.array([[s, 0, 0.5 * (w - 1)], [0, s, 0.5 * (h - 1)], [0, 0, 1]])
 
 
 def ray_plane_intersection(ray_origins, ray_directions_unit, plane_normal, plane_point):
@@ -184,7 +184,7 @@ def ray_plane_intersection(ray_origins, ray_directions_unit, plane_normal, plane
 
 
 def get_camera_intrinsic_matrix(
-    input_json: str | Path,
+    input_json: Union[str, Path],
     in_pixel_coords: bool = False,
     camera_id: str = "  1920 1080 brown 0.85",
 ) -> np.ndarray:
@@ -226,8 +226,9 @@ def get_camera_intrinsic_matrix(
     if in_pixel_coords:
         scale = np.max([camera["width"], camera["height"]])
         # Convert parameters to pixel coordinates
-        cx = (cx * scale) + (camera["width"] - 1) / 2
-        cy = (cy * scale) + (camera["height"] - 1) / 2
+        # same as cx = H_norm_to_pixel_coords @ cx
+        cx = (cx * scale) + 0.5 * (camera["width"] - 1)
+        cy = (cy * scale) + 0.5 * (camera["height"] - 1)
         fx = fx * scale
         fy = fy * scale
 
@@ -239,9 +240,9 @@ def get_camera_intrinsic_matrix(
 
 
 def get_camera_distortion_coeffs(
-    input_json: str | Path,
+    input_json: Union[str, Path],
     camera_id: str = "  1920 1080 brown 0.85",
-) -> dict[str, float]:
+) -> Dict[str, float]:
     """
     Read the cameras.json file and return the Brown-Conrady distortion coefficients.
 
@@ -316,15 +317,18 @@ def get_camera_distortion_coeffs(
     return distortion
 
 
-def get_orthophoto_corners(
-    orthophoto_corners_path: str | Path, plane_normal, plane_center
+def get_orthophoto_corners_in_3d(
+    orthophoto_corners_path: Union[str, Path],
+    plane_normal: np.ndarray,
+    plane_center: np.ndarray,
 ) -> np.ndarray:
     """
-    Get the corners of the orthophoto.
+    Get the corners of the orthophoto in 3D.
     """
+    # Read 2d coordinates
     orthophoto_corners_2d = np.loadtxt(orthophoto_corners_path).reshape(-1, 2)
 
-    # add additional corners
+    # add missing corners
     orthophoto_corners_2d = np.vstack(
         [
             orthophoto_corners_2d,
@@ -333,7 +337,8 @@ def get_orthophoto_corners(
         ]
     )
 
-    # compute projection of orthophoto corners onto the plane
+    # compute projection of orthophoto corners onto the best fitting plane
+    # to the mesh
     orthophoto_corners_3d = np.zeros((orthophoto_corners_2d.shape[0], 3))
     orthophoto_corners_3d[:, 0] = orthophoto_corners_2d[:, 0]
     orthophoto_corners_3d[:, 1] = orthophoto_corners_2d[:, 1]
@@ -343,3 +348,34 @@ def get_orthophoto_corners(
     ) + plane_center[2]
 
     return orthophoto_corners_3d
+
+
+def compute_Q_world2plane(orthophoto_corners_file, plane_normal, plane_center):
+    """
+    Compute the Q matrix to transform world coordinates to plane coordinates.
+
+    The origin of the plane coordinate system is the xmax, ymin corner of the orthophoto.
+    The x-axis is parallel to the vector from (xmax, ymin) to (xmin, ymin)
+    The z-axis is parallel to the plane normal.
+    The y-axis is the cross product of the z-axis and the x-axis.
+    """
+    # origin of the plane coordinate system: corner_xmax_ymin
+    orthophoto_corners_3d = get_orthophoto_corners_in_3d(
+        orthophoto_corners_file, plane_normal, plane_center
+    )
+    corner_xmax_ymin = orthophoto_corners_3d[-1, :]
+    corner_xmin_ymin = orthophoto_corners_3d[0, :]
+
+    # versors
+    x_versor = corner_xmin_ymin - corner_xmax_ymin
+    x_versor = x_versor / np.linalg.norm(x_versor)
+
+    y_versor = np.cross(plane_normal, x_versor)
+    y_versor = y_versor / np.linalg.norm(y_versor)
+
+    z_versor = plane_normal
+
+    # Q matrix:versors as rows
+    Q_world2plane = np.vstack([x_versor, y_versor, z_versor])
+
+    return Q_world2plane
