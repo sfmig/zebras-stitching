@@ -40,7 +40,7 @@ camera_intrinsics = odm_dataset_dir / "cameras.json"
 # Read the transforms file
 df_input = pd.read_csv(sfm_interpolated_file)
 
-# Read rotations as dict
+# Read rotations as dict with frame index as key
 rots_cam_to_world_interp = {
     frame_idx: R.from_rotvec(rotvec_xyz)
     for frame_idx, rotvec_xyz in zip(
@@ -55,7 +55,7 @@ rots_cam_to_world_interp = {
     )
 }
 
-# Read translations as dict
+# Read translations as dict with frame index as key
 t_cam_to_world_interp = {
     frame_idx: t_xyz
     for frame_idx, t_xyz in zip(
