@@ -1,5 +1,5 @@
 """
-Apply the interpolated SfM transforms to the 2D trajectories.
+Apply the interpolated SfM transforms to the 2D trajectories and export as sleap file.
 
 To use with movement 0.5.1 (i.e., not inside container)
 """
@@ -19,7 +19,8 @@ from utils import (
     position_array_to_homogeneous,
     ray_plane_intersection,
     get_camera_intrinsic_matrix,
-    get_orthophoto_corners
+    get_orthophoto_corners_in_3d,
+    compute_Q_world2plane
 )
 
 import matplotlib.pyplot as plt
@@ -28,13 +29,13 @@ import matplotlib.pyplot as plt
 # Input data
 
 data_dir = Path("data")
-sfm_interpolated_file = data_dir / "20250325_2228_id_sfm_transforms_20250513_203035_interp_20250513_230824.csv"
+sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
 points_2d_slp = data_dir / "20250325_2228_id.slp"
 
 # ODM data
 odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
 mesh_path = odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
-orthophoto_corners = odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
+orthophoto_corners_file = odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
 camera_intrinsics = odm_dataset_dir / "cameras.json"
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transforms file
@@ -89,8 +90,8 @@ print(position_homogeneous)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Camera parameters
-# TODO: check values with opensfm
-# TODO: should be in pixel coords!!
+
+# Get camera intrinsic matrix in pixel coordinates
 K_camera_intrinsic = get_camera_intrinsic_matrix(camera_intrinsics, in_pixel_coords=True)
 
 # Get camera width and height
@@ -162,34 +163,26 @@ pt3D_world_all = np.stack(list_3D_points_per_frame, axis=0)
 print(pt3D_world_all.shape)  # frame, space, kpts, individuals
 
 
-
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Transform to plane basis
 
-# origin of the plane coordinate system: corner_xmax_ymin
-orthophoto_corners_3d = get_orthophoto_corners(orthophoto_corners, plane_normal, plane_center)
-corner_xmax_ymin = orthophoto_corners_3d[-1,:]  
-corner_xmin_ymin = orthophoto_corners_3d[0,:]
+# The plane coordinate system: 
+# origin at corner_xmax_ymin
+# x-axis parallel to vector from corner_xmax_ymin to corner_xmin_ymin
+# z-axis parallel to plane normal
+Q_world2plane = compute_Q_world2plane(orthophoto_corners_file, plane_normal, plane_center)
 
-# versors
-x_versor = corner_xmin_ymin - corner_xmax_ymin
-x_versor = x_versor / np.linalg.norm(x_versor)
-
-y_versor = np.cross(plane_normal, x_versor)
-y_versor = y_versor / np.linalg.norm(y_versor)
-
-z_versor = plane_normal
-
-# Q matrix:versors as rows
-Q_world2plane = np.vstack([x_versor, y_versor, z_versor])
-
-# express orthophoto corners in the plane basis
-# z-coord should be 0
+# Check: express orthophoto corners in the plane basis
+# z-coord should be 0 and last point should be (0,0)
+orthophoto_corners_3d = get_orthophoto_corners_in_3d(
+    orthophoto_corners_file, plane_normal, plane_center
+)
+corner_xmax_ymin = orthophoto_corners_3d[-1,:]
 orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - corner_xmax_ymin).T).T
 print(orthophoto_corners_3d_plane)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Transform 3D points to plane basis and scale
+# Transform 3D points to plane basis
 pt3D_plane_all = (
     Q_world2plane # (3,3)
     @ (np.moveaxis(pt3D_world_all, 1, -1) - corner_xmax_ymin)[..., None] # (6293, 2, 44, 3, 1)
@@ -200,13 +193,15 @@ pt3D_plane_all = (
 # Reorder axes to (time, space, kpts, individuals)
 pt3D_plane_all = np.moveaxis(pt3D_plane_all, -1, 1)
 
-pt3D_plane_all *= max(image_width, image_height)
-
 print(np.nanmax(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D and 3D points as movement dataset
+# Save 2D points in plane basis as movement dataset
 # 2D points should be visualizable in napari
+
+# Apply scaling factor before saving
+# (world coordinates are normalised?)
+pt3D_plane_all *= max(image_width, image_height)
 
 ds_2d_plane = load_poses.from_numpy(
     position_array=pt3D_plane_all[:,:2,:, :], # remove z-coordinates
@@ -214,7 +209,7 @@ ds_2d_plane = load_poses.from_numpy(
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
     fps=None,
-    source_software='sfm-interpolated',
+    source_software='sfm-interpolated-pcs-2d',
 )
 ds_2d_plane.attrs["source_file"] = ""
 ds_2d_plane.attrs['units'] = 'pixels'
@@ -224,15 +219,64 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_plane,
-    data_dir / f"{points_2d_slp.stem}_sfm_interp_{timestamp}.h5",
+    data_dir / f"{points_2d_slp.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot 2D points
+# Save 2D points in plane coordinates projected to z=0 as movement dataset
+# 2D points should be visualizable in napari
 
+# Apply scaling factor before saving
+# (world coordinates are normalised?)
+pt3D_world_all *= max(image_width, image_height)
+
+ds_2d_z0 = load_poses.from_numpy(
+    position_array=pt3D_world_all[:,:2,:, :], # remove z-coordinates
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated-wcs-2d-z0',
+)
+ds_2d_z0.attrs["source_file"] = ""
+ds_2d_z0.attrs['units'] = 'pixels'
+
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_2d_z0,
+    data_dir / f"{points_2d_slp.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
+)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot 3D points
+# Save 3D points in WCS
+
+# Apply scaling factor before saving
+# (world coordinates are normalised?)
+pt3D_world_all *= max(image_width, image_height)
+
+ds_3d_wcs = load_poses.from_numpy(
+    position_array=pt3D_world_all,
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated-wcs-3d',
+)
+ds_3d_wcs.attrs["source_file"] = ""
+ds_3d_wcs.attrs['units'] = 'pixels'
+
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_3d_wcs,
+    data_dir / f"{points_2d_slp.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
+)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot 3D points (scaled)
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
@@ -266,7 +310,7 @@ for individual_idx in range(pt3D_world_all.shape[-1]):
         #     c=color_per_individual[individual_idx]
         # )
 
-# # plot orthophoto corners
+# # plot orthophoto corners -- ATT: these are in normalised coordinates!
 # ax.scatter(
 #     orthophoto_corners_3d[:, 0],
 #     orthophoto_corners_3d[:, 1],
@@ -279,3 +323,5 @@ ax.set_aspect("equal")
 ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
+
+# %%
