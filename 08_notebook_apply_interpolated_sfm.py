@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pandas as pd
 import trimesh
-from movement.io import load_poses, save_poses
+from movement.io import load_poses, save_poses, load_bboxes
 from scipy.spatial.transform import Rotation as R
 from utils import (
     compute_H_norm_to_pixel_coords,
@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 
 data_dir = Path("data")
 sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
-points_2d_slp = data_dir / "20250325_2228_id.slp"
+points_2d_file = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
 
 # ODM data
 odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
@@ -78,7 +78,15 @@ plane_normal, plane_center = compute_plane_normal_and_center(mesh)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read 2D trajectories
-ds = load_poses.from_sleap_file(points_2d_slp)
+if points_2d_file.suffix == ".slp":
+    ds = load_poses.from_sleap_file(points_2d_file)
+elif points_2d_file.suffix == ".csv":
+    ds = load_bboxes.from_via_tracks_file(points_2d_file)
+    # add a keypoint coordinate 
+    ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
+    ds = ds.assign_coords({"keypoints":["centroid"]})
+
+
 
 position = ds.position  # as xarray data array, time in frames
 position_homogeneous = position_array_to_homogeneous(position)
@@ -164,7 +172,7 @@ print(pt3D_world_all.shape)  # frame, space, kpts, individuals
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Transform to plane basis
+# Compute change of basis to plane basis
 
 # The plane coordinate system: 
 # origin at corner_xmax_ymin
@@ -219,7 +227,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_plane,
-    data_dir / f"{points_2d_slp.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
+    data_dir / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -246,7 +254,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_z0,
-    data_dir / f"{points_2d_slp.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
+    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -272,7 +280,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_3d_wcs,
-    data_dir / f"{points_2d_slp.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
+    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
