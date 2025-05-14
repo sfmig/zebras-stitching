@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as R
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-sfm_keyframe_transforms_file = Path("data/20250325_2228_id_sfm_transforms_20250513_203035.csv")
+sfm_keyframe_transforms_file = Path("data") / "sfm_keyframes_transforms_20250514_212616.csv"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transformscsv file
