@@ -13,10 +13,11 @@ import xarray as xr
 from movement.io import load_poses, save_poses
 from datetime import datetime
 
+import skimage as ski
 from skimage.transform import warp
 
 # Uncomment the following line for interactive plotting
-# %matplotlib widget 
+# %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data paths
 
@@ -24,9 +25,9 @@ repo_root = Path(__file__).parents[0]
 data_dir = repo_root / "data"
 transforms_dir = data_dir / "elastix"
 
-# Wrapped data 
+# Wrapped data
 filename = Path("20250325_2228_id.slp")
-file_path = data_dir / filename 
+file_path = data_dir / filename
 
 # Elastix transforms
 transforms_file = transforms_dir / "out_euler_frame_masked.csv"
@@ -61,10 +62,11 @@ position_array = ds.position
 # The rotation is expressed as an angle in radians
 # The translation is expressed as a vector in pixels
 # The transform given for frame f is the transform required to
-# go from frame f to frame f-1 
+# go from frame f to frame f-1
 
-# Elastix finds the parameters of a transformation (like rigid, affine, or non-rigid)
-# that best maps the moving image (f) to the fixed image (f-1)
+# itk-elastix computes transformations that map points
+# from the fixed image (f) domain to the moving image (f-1) domain.
+# See: https://github.com/InsightSoftwareConsortium/ITKElastix/blob/main/examples/ITK_Example08_SimpleTransformix.ipynb
 
 # read as pandas dataframe
 transforms_df = pd.read_csv(transforms_file)
@@ -85,7 +87,7 @@ print(f"Number of frames: {n_frames}")
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute position array in homogeneous coordinates
+# Compute the position array in homogeneous coordinates
 # (x, y, 1) instead of (x, y)
 # I use "h" for the third homog coord instead of "z" for clarity
 
@@ -128,7 +130,7 @@ Q_corner_to_centre[:2, 2] = -v_corner_to_centre
 
 
 def compute_rotation_matrix(theta):
-    """Compute rotation matrix for a given angle theta (in radians).
+    """Compute homogeneous rotation matrix for a given angle theta (in radians).
     The rotation is around the z-axis (i.e., in the xy-plane).
     Theta is positive going from x to y."""
     return np.array(
@@ -176,6 +178,15 @@ translation_to_ICS0_centre_array = compute_translation_matrix_vec(
 
 print(translation_to_ICS0_centre_array.shape)
 
+# %%
+translation_norm = np.linalg.norm(
+    np.array(
+        [transforms_df["tx"].cumsum().values, transforms_df["ty"].cumsum().values]
+    ),
+    axis=0,
+)
+fig, ax = plt.subplots()
+ax.plot(translation_norm)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -224,12 +235,8 @@ colors = cmap(values)
 fig, ax = plt.subplots()
 for i, ind in enumerate(position_array_ICS0.individuals):
     ax.scatter(
-        position_array_ICS0.mean("keypoints")
-        .sel(space="x", individuals=ind)
-        .values.flatten(),
-        position_array_ICS0.mean("keypoints")
-        .sel(space="y", individuals=ind)
-        .values.flatten(),
+        position_array_ICS0.mean("keypoints").sel(space="x", individuals=ind).values,
+        position_array_ICS0.mean("keypoints").sel(space="y", individuals=ind).values,
         s=1,
         c=colors[i, :].reshape(1, -1),
     )
@@ -270,19 +277,18 @@ ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute blended image applying max of one very n frames
+# Compute blended image applying MAX of one very n frames
 blend_step = 10
 list_frames = list(range(position_array_ICS0.values.shape[0]))
 list_frames_to_plot = list_frames[0:-1:blend_step]
 
 # Shape of output (blended) image
 # output_shape = [int(x * 5) for x in frame_shape[:2]]
-# TODO: it crops anything above the y=0 axis of the first frame
-# Can we fix this?
+# Note: it effectively crops anything above the y=0 axis of the first frame
 output_shape = [1400, 5500]
-blended_warped_img = np.zeros(output_shape + [3])
+blended_warped_img_max = np.zeros(output_shape + [3])
 
-# TODO: vectorize this now that we use the full set of frames
+
 for f_i, f in enumerate(list_frames_to_plot):
     img_warped = warp(
         video[f],
@@ -298,7 +304,83 @@ for f_i, f in enumerate(list_frames_to_plot):
     )
 
     # Compute running max pixel
-    blended_warped_img = np.maximum(blended_warped_img, img_warped)
+    blended_warped_img_max = np.maximum(blended_warped_img_max, img_warped)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Compute blended image by computing MEAN of every n frames
+blend_step = 500
+list_frames = list(range(position_array_ICS0.values.shape[0]))
+list_frames_to_plot = list_frames[0:-1:blend_step]
+
+# Shape of output (blended) image
+# output_shape = [int(x * 5) for x in frame_shape[:2]]
+output_shape = [1400, 5500]
+blended_warped_img_mean = np.zeros(output_shape + [3])
+
+
+for f_i, f in enumerate(list_frames_to_plot):
+    img_warped = warp(
+        video[f],
+        np.linalg.inv(
+            np.linalg.inv(Q_corner_to_centre)
+            @ rotation_to_ICS0_centre_array[list_frames.index(f), :, :]
+            @ translation_to_ICS0_centre_array[list_frames.index(f), :, :]
+            @ Q_corner_to_centre
+        ),
+        # we do inverse outside because skimage's warp expects
+        # the transform from output image to input image
+        output_shape=output_shape,
+    )
+
+    # Compute blend
+    blended_warped_img_mean = ski.util.compare_images(
+        blended_warped_img_mean, img_warped, method="blend"
+    )
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Compute blended image by OVERLAYING one every n frames,
+# taking the EARLIEST pixel value
+
+blend_step = 300
+list_frames = list(range(position_array_ICS0.values.shape[0]))
+list_frames_to_plot = list_frames[0:-1:blend_step]
+
+# Shape of output (blended) image
+# output_shape = [int(x * 5) for x in frame_shape[:2]]
+# Note: it effectively crops anything above the y=0 axis of the first frame
+output_shape = [1650, int(max(translation_norm) + frame_shape[1])]
+blended_warped_img = np.zeros(output_shape + [3])
+
+video_warped = np.zeros([video.shape[0], *output_shape, 3])
+
+# TODO: vectorize this now that we use the full set of frames
+for f in list_frames_to_plot:
+    img_warped = warp(
+        video[f],
+        np.linalg.inv(
+            np.linalg.inv(Q_corner_to_centre)
+            @ rotation_to_ICS0_centre_array[f, :, :]
+            @ translation_to_ICS0_centre_array[f, :, :]
+            @ Q_corner_to_centre,
+        ),
+        # we do inverse outside because skimage's warp expects
+        # the transform from output image to input image
+        output_shape=output_shape,
+    )
+
+    # Add to array
+    video_warped[f] = img_warped
+
+    # Define a mask that is positive around img_warped
+    mask = np.all(
+        [img_warped[:, :, i] != 0 for i in range(img_warped.shape[-1])], axis=0
+    )
+
+    # Assign value to blended_warped_img only if not already assigned
+    blended_warped_img = np.where(
+        blended_warped_img == 0, img_warped, blended_warped_img
+    )
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -308,8 +390,8 @@ for f_i, f in enumerate(list_frames_to_plot):
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 matplotlib.image.imsave(
-    Path("figures") / f"Figure_blended_n{blend_step}_{timestamp}.png", 
-    blended_warped_img
+    Path("figures") / f"Figure_blended_n{blend_step}_{timestamp}.png",
+    blended_warped_img,
 )
 
 
@@ -319,12 +401,8 @@ fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
 for ind in position_array_ICS0.individuals:
     ax.scatter(
-        position_array_ICS0.mean("keypoints")
-        .sel(space="x", individuals=ind)
-        .values.flatten(),
-        position_array_ICS0.mean("keypoints")
-        .sel(space="y", individuals=ind)
-        .values.flatten(),
+        position_array_ICS0.mean("keypoints").sel(space="x", individuals=ind).values,
+        position_array_ICS0.mean("keypoints").sel(space="y", individuals=ind).values,
         s=1,
         cmap="tab20",
     )
@@ -332,6 +410,7 @@ ax.set_aspect("equal")
 
 ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Export data
