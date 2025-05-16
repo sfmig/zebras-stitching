@@ -11,11 +11,10 @@ It computes the following metrics:
 
 """
 
-import os
-
 # %%
 # Imports
 # -------
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -40,16 +39,20 @@ os.system("movement info")
 
 repo_root = Path(__file__).parent
 data_dir = repo_root / "data"
-video_dir = repo_root / "videos"
 assert data_dir.exists()
-assert video_dir.exists()
 
-filename = "20250325_2228_id_unwrapped_20250403_161408_clean_sleap.h5"
-file_path = data_dir / filename
-video_path = video_dir / "21Jan_007.mp4"
-background_path = video_dir / "21Jan_007_unwrapped_background.png"
-for path in [file_path, video_path, background_path]:
-    assert path.exists()
+approach_to_path = {  # paths are relative to data_dir
+    "itk-all": (
+        "itk-all-approach/20250325_2228_id_unwrapped_20250403_161408_clean.h5"
+    ),
+    "sfm-pcs-2d": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean.h5", 
+}
+
+# Select which approach to use
+approach = "sfm-pcs-2d"  # can be either "itk-all" or "sfm-pcs-2d"
+file_path_relative = approach_to_path[approach]
+file_path = data_dir / Path(file_path_relative)
+assert file_path.exists()
 
 # %%
 # Now, let's load the data

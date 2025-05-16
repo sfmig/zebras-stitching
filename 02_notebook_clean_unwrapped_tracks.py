@@ -35,16 +35,20 @@ os.system("movement info")
 
 repo_root = Path(__file__).parent
 data_dir = repo_root / "data"
-video_dir = repo_root / "videos"
 assert data_dir.exists()
-assert video_dir.exists()
 
-filename = "20250325_2228_id_unwrapped_20250403_161408.h5"
-file_path = data_dir / filename
-video_path = video_dir / "21Jan_007.mp4"
-background_path = video_dir / "21Jan_007_unwrapped_background.png"
-for path in [file_path, video_path, background_path]:
-    assert path.exists()
+approach_to_path = {  # paths are relative to data_dir
+    "itk-all": (
+        "itk-all-approach/20250325_2228_id_unwrapped_20250403_161408.h5"
+    ),
+    "sfm-pcs-2d": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745.h5", 
+}
+
+# Select which approach to use
+approach = "sfm-pcs-2d"  # can be either "itk-all" or "sfm-pcs-2d"
+file_path_relative = approach_to_path[approach]
+file_path = data_dir / Path(file_path_relative)
+assert file_path.exists()
 
 # %%
 # Now, let's load the unwrapped poses
@@ -56,7 +60,6 @@ ds = load_poses.from_file(file_path, source_software="SLEAP", fps=30)
 # Let' overlay the trajectories on the unwrapped background image
 
 fig, ax = plt.subplots(1, 1)
-ax.imshow(plt.imread(background_path))
 
 # Plot centroid trajectories of the individuals
 individuals = ds.individuals.values
@@ -114,11 +117,11 @@ plt.xlabel("Time (s)")
 
 # %%
 # Plot a histogram of confidence values
-colors = ["green", "purple"]
+hist_colors = ["green", "purple"]
 
 for i, keypoint in enumerate(ds.keypoints.values):
     ds.confidence.sel(keypoints=keypoint).plot.hist(
-        bins=50, histtype="step", color=colors[i], label=keypoint
+        bins=50, histtype="step", color=hist_colors[i], label=keypoint
     )
     plt.legend(title="Keypoint")
     plt.title("Confidence histogram")
@@ -197,7 +200,6 @@ plt.suptitle(f"Distance < {dist_thresh:.2f} pixels")
 # %%
 # Plot the clean trajectories on the background image
 fig, ax = plt.subplots(1, 1)
-ax.imshow(plt.imread(background_path))
 # Plot centroid trajectories of the individuals
 for id, color in zip(individuals, colors):
     plot_centroid_trajectory(
@@ -266,7 +268,7 @@ ds_clean.attrs = ds.attrs.copy()
 
 
 save_poses.to_sleap_analysis_file(
-    ds_clean, data_dir / filename.replace(".h5", "_clean_sleap.h5"),
+    ds_clean, file_path.with_name(file_path.stem + "_clean.h5"),
 )
 
 # %%
