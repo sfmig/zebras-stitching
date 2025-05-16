@@ -17,7 +17,7 @@ import skimage as ski
 from skimage.transform import warp
 
 # Uncomment the following line for interactive plotting
-%matplotlib widget 
+# %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data paths
 
@@ -25,9 +25,9 @@ repo_root = Path(__file__).parents[0]
 data_dir = repo_root / "data"
 transforms_dir = data_dir / "elastix"
 
-# Wrapped data 
+# Wrapped data
 filename = Path("20250325_2228_id.slp")
-file_path = data_dir / filename 
+file_path = data_dir / filename
 
 # Elastix transforms
 transforms_file = transforms_dir / "out_euler_frame_masked.csv"
@@ -62,9 +62,9 @@ position_array = ds.position
 # The rotation is expressed as an angle in radians
 # The translation is expressed as a vector in pixels
 # The transform given for frame f is the transform required to
-# go from frame f to frame f-1 
+# go from frame f to frame f-1
 
-# itk-elastix computes transformations that map points 
+# itk-elastix computes transformations that map points
 # from the fixed image (f) domain to the moving image (f-1) domain.
 # See: https://github.com/InsightSoftwareConsortium/ITKElastix/blob/main/examples/ITK_Example08_SimpleTransformix.ipynb
 
@@ -179,8 +179,13 @@ translation_to_ICS0_centre_array = compute_translation_matrix_vec(
 print(translation_to_ICS0_centre_array.shape)
 
 # %%
-translation_norm = np.linalg.norm(np.array([transforms_df["tx"].cumsum().values, transforms_df["ty"].cumsum().values]), axis=0)
-fig, ax =plt.subplots()
+translation_norm = np.linalg.norm(
+    np.array(
+        [transforms_df["tx"].cumsum().values, transforms_df["ty"].cumsum().values]
+    ),
+    axis=0,
+)
+fig, ax = plt.subplots()
 ax.plot(translation_norm)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -283,7 +288,7 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 output_shape = [1400, 5500]
 blended_warped_img_max = np.zeros(output_shape + [3])
 
-# TODO: vectorize this now that we use the full set of frames
+
 for f_i, f in enumerate(list_frames_to_plot):
     img_warped = warp(
         video[f],
@@ -312,7 +317,7 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 output_shape = [1400, 5500]
 blended_warped_img_mean = np.zeros(output_shape + [3])
 
-# TODO: vectorize this now that we use the full set of frames
+
 for f_i, f in enumerate(list_frames_to_plot):
     img_warped = warp(
         video[f],
@@ -328,11 +333,13 @@ for f_i, f in enumerate(list_frames_to_plot):
     )
 
     # Compute blend
-    blended_warped_img_mean = ski.util.compare_images(blended_warped_img_mean, img_warped, method='blend')
+    blended_warped_img_mean = ski.util.compare_images(
+        blended_warped_img_mean, img_warped, method="blend"
+    )
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute blended image by OVERLAYING one every n frames, 
+# Compute blended image by OVERLAYING one every n frames,
 # taking the EARLIEST pixel value
 
 blend_step = 300
@@ -366,14 +373,13 @@ for f in list_frames_to_plot:
     video_warped[f] = img_warped
 
     # Define a mask that is positive around img_warped
-    mask = np.all([img_warped[:,:,i] != 0 for i in range(img_warped.shape[-1])], axis=0)
-
+    mask = np.all(
+        [img_warped[:, :, i] != 0 for i in range(img_warped.shape[-1])], axis=0
+    )
 
     # Assign value to blended_warped_img only if not already assigned
     blended_warped_img = np.where(
-        blended_warped_img == 0,
-        img_warped,
-        blended_warped_img
+        blended_warped_img == 0, img_warped, blended_warped_img
     )
 
 
@@ -384,8 +390,8 @@ for f in list_frames_to_plot:
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 matplotlib.image.imsave(
-    Path("figures") / f"Figure_blended_n{blend_step}_{timestamp}.png", 
-    blended_warped_img
+    Path("figures") / f"Figure_blended_n{blend_step}_{timestamp}.png",
+    blended_warped_img,
 )
 
 
@@ -404,7 +410,6 @@ ax.set_aspect("equal")
 
 ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
-
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
