@@ -48,7 +48,7 @@ camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select file
-points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
+points_2d_file = points_2d_file_trees # points_2d_file_zebras #  
 print(f"File: {points_2d_file.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -245,7 +245,7 @@ slp_file = save_poses.to_sleap_analysis_file(
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D points in (scaled)plane basis as movement dataset
+# Save 2D points in (scaled) plane basis as movement dataset
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
@@ -276,7 +276,6 @@ slp_file = save_poses.to_sleap_analysis_file(
 # Save 2D points in (scaled) plane coordinates projected to z=0 as movement dataset
 # 2D points should be visualizable in napari
 
-# Apply scaling factor before saving
 # Apply scaling factor before saving
 # Note: the world coordinates from sfm are in arbitrary units, since the 
 # input data is not georeferenced. We scale by the max of the image 
