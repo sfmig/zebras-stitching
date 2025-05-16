@@ -217,6 +217,33 @@ pt3D_plane_all = np.moveaxis(pt3D_plane_all, -1, 1)
 
 print(np.nanmax(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Save 3D points in WCS - (original arbitrary units)
+
+# These arbitrary units should match the mesh units
+# Note that we don't apply any scaling factor here
+# since we don't expect to visualize these in napari
+ds_3d_wcs = load_poses.from_numpy(
+    position_array=pt3D_world_all,
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated-wcs-3d',
+)
+ds_3d_wcs.attrs["source_file"] = ""
+ds_3d_wcs.attrs['units'] = 'pixels'
+
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_3d_wcs,
+    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
+)
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Save 2D points in plane basis as movement dataset
 # 2D points should be visualizable in napari
@@ -280,30 +307,6 @@ slp_file = save_poses.to_sleap_analysis_file(
     data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
 )
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 3D points in WCS - (original arbitrary units)
-
-# These arbitrary units should match the mesh units
-# Note that we don't apply any scaling factor here
-# since we don't expect to visualize these in napari
-ds_3d_wcs = load_poses.from_numpy(
-    position_array=pt3D_world_all,
-    confidence_array=ds.confidence.values,
-    individual_names=ds.individuals.values,
-    keypoint_names=ds.keypoints.values,
-    fps=None,
-    source_software='sfm-interpolated-wcs-3d',
-)
-ds_3d_wcs.attrs["source_file"] = ""
-ds_3d_wcs.attrs['units'] = 'pixels'
-
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-slp_file = save_poses.to_sleap_analysis_file(
-    ds_3d_wcs,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
-)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot 3D points (scaled)
