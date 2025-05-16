@@ -48,7 +48,7 @@ camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select file
-points_2d_file = points_2d_file_trees # points_2d_file_zebras #  
+points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
 print(f"File: {points_2d_file.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
