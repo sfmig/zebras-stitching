@@ -279,10 +279,9 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 
 # Shape of output (blended) image
 # output_shape = [int(x * 5) for x in frame_shape[:2]]
-# TODO: it crops anything above the y=0 axis of the first frame
-# Can we fix this?
+# Note: it effectively crops anything above the y=0 axis of the first frame
 output_shape = [1400, 5500]
-blended_warped_img = np.zeros(output_shape + [3])
+blended_warped_img_max = np.zeros(output_shape + [3])
 
 # TODO: vectorize this now that we use the full set of frames
 for f_i, f in enumerate(list_frames_to_plot):
@@ -300,7 +299,7 @@ for f_i, f in enumerate(list_frames_to_plot):
     )
 
     # Compute running max pixel
-    blended_warped_img = np.maximum(blended_warped_img, img_warped)
+    blended_warped_img_max = np.maximum(blended_warped_img_max, img_warped)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute blended image by computing MEAN of every n frames
@@ -310,10 +309,8 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 
 # Shape of output (blended) image
 # output_shape = [int(x * 5) for x in frame_shape[:2]]
-# TODO: it crops anything above the y=0 axis of the first frame
-# Can we fix this?
 output_shape = [1400, 5500]
-blended_warped_img = np.zeros(output_shape + [3])
+blended_warped_img_mean = np.zeros(output_shape + [3])
 
 # TODO: vectorize this now that we use the full set of frames
 for f_i, f in enumerate(list_frames_to_plot):
@@ -331,51 +328,8 @@ for f_i, f in enumerate(list_frames_to_plot):
     )
 
     # Compute blend
-    blended_warped_img = ski.util.compare_images(blended_warped_img, img_warped, method='blend')
+    blended_warped_img_mean = ski.util.compare_images(blended_warped_img_mean, img_warped, method='blend')
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute blended image APPLYING MAX of one very n frames
-blend_step = 1000
-list_frames = list(range(position_array_ICS0.values.shape[0]))
-list_frames_to_plot = list_frames[0:-1:blend_step]
-
-# Shape of output (blended) image
-# output_shape = [int(x * 5) for x in frame_shape[:2]]
-# TODO: it crops anything above the y=0 axis of the first frame
-# Can we fix this?
-output_shape = [1400, 5500]
-blended_warped_img = np.zeros(output_shape + [3])
-
-blended_warped_img = np.dstack(
-    [
-        blended_warped_img,
-        np.full(output_shape, True)
-    ]
-)
-
-# TODO: vectorize this now that we use the full set of frames
-for f_i, f in enumerate(list_frames_to_plot):
-    img_warped = warp(
-        video[f],
-        np.linalg.inv(
-            np.linalg.inv(Q_corner_to_centre)
-            @ rotation_to_ICS0_centre_array[list_frames.index(f), :, :]
-            @ translation_to_ICS0_centre_array[list_frames.index(f), :, :]
-            @ Q_corner_to_centre
-        ),
-        # we do inverse outside because skimage's warp expects
-        # the transform from output image to input image
-        output_shape=output_shape,
-    )
-
-    # Define a mask that is positive around img_warped
-    mask = np.all([img_warped[:,:,i] != 0 for i in range(img_warped.shape[-1])], axis=0)
-
-    # Add mask as an alpha channel
-    img_warped = np.dstack([img_warped, np.expand_dims(mask, axis=-1)])
-
-    # Compute running max pixel
-    blended_warped_img = np.maximum(blended_warped_img, img_warped)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute blended image by OVERLAYING one every n frames, 
@@ -387,8 +341,7 @@ list_frames_to_plot = list_frames[0:-1:blend_step]
 
 # Shape of output (blended) image
 # output_shape = [int(x * 5) for x in frame_shape[:2]]
-# TODO: it crops anything above the y=0 axis of the first frame
-# Can we fix this?
+# Note: it effectively crops anything above the y=0 axis of the first frame
 output_shape = [1650, int(max(translation_norm) + frame_shape[1])]
 blended_warped_img = np.zeros(output_shape + [3])
 
@@ -415,16 +368,6 @@ for f in list_frames_to_plot:
     # Define a mask that is positive around img_warped
     mask = np.all([img_warped[:,:,i] != 0 for i in range(img_warped.shape[-1])], axis=0)
 
-    # Compute overlay
-    # idcs_mask = np.nonzero(mask)
-    # blended_warped_img[idcs_mask[0], idcs_mask[1], :] = img_warped[idcs_mask[0], idcs_mask[1], :]
-
-    # # Compute overlay 2
-    # blended_warped_img = np.where(
-    #     mask[..., np.newaxis],
-    #     img_warped,
-    #     blended_warped_img
-    # )
 
     # Assign value to blended_warped_img only if not already assigned
     blended_warped_img = np.where(
@@ -433,20 +376,6 @@ for f in list_frames_to_plot:
         blended_warped_img
     )
 
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Ideally: we tile where there is overlap
-# TODO: why do zebras go over the trees?
-# - I think it is the accumulated error. Because the transform of later frames is progressively bad, 
-# and later frames overly the earlier ones.
-# - Ideally we show for each data point at frame f its background (as a patch) at frame f, but that is hard... And also it
-# would not allow us to detect the accumulated error. (It's not that hard, I can show the image data for the bbox around the 
-# trajectory data at frame f only - in that case we would never see the zebras over the trees)
-# - There is a mitch match between trajectories and background image because the background shown for each trajectory point is not 
-# necessarily the background corresponding for that frame
-# - But this wouldn't happen if there was no accumulated error because every transform would be perfect
-
-# TODO: why if Igor computed f-1 to f, and I assumed f to f-1, the result seems ok?
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # % Save blended image
@@ -464,18 +393,6 @@ matplotlib.image.imsave(
 # Plot trajectories over blended image
 fig, ax = plt.subplots()
 ax.imshow(blended_warped_img)
-# ax.scatter(
-#     position_array_ICS0.mean("keypoints")
-#     .sel(space="x", individuals='track_0', time=list_frames_to_plot)
-#     .values.flatten(),
-#     position_array_ICS0.mean("keypoints")
-#     .sel(space="y", individuals='track_0', time=list_frames_to_plot)
-#     .values.flatten(),
-#     s=100,
-#     marker="o",
-#     facecolors='none', edgecolors='r'
-#     # cmap="tab20",
-# )
 for ind in position_array_ICS0.individuals:
     ax.scatter(
         position_array_ICS0.mean("keypoints").sel(space="x", individuals=ind).values,
@@ -488,79 +405,7 @@ ax.set_aspect("equal")
 ax.set_xlabel("x (pixels)")
 ax.set_ylabel("y (pixels)")
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot trajectories over warped frame 1700
-ind = "track_30"
-frame = 1700
 
-fig, ax = plt.subplots()
-ax.imshow(video_warped[frame])
-ax.scatter(
-    position_array_ICS0.mean("keypoints")
-    .sel(space="x", individuals=ind)
-    .values.flatten(),
-    position_array_ICS0.mean("keypoints")
-    .sel(space="y", individuals=ind)
-    .values.flatten(),
-    s=10,
-    marker="o",
-    # cmap="tab20",
-)
-ax.scatter(
-    position_array_ICS0.mean("keypoints")
-    .sel(space="x", individuals=ind, time=frame)
-    .values.flatten(),
-    position_array_ICS0.mean("keypoints")
-    .sel(space="y", individuals=ind, time=frame)
-    .values.flatten(),
-    s=100,
-    marker="o",
-    facecolors='none', edgecolors='r'
-    # cmap="tab20",
-)
-ax.set_aspect("equal")
-
-ax.set_xlabel("x (pixels)")
-ax.set_ylabel("y (pixels)")
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot trajectories over each warped image
-
-for f in list_frames_to_plot:
-    fig, ax = plt.subplots()
-    ax.imshow(video_warped[f])   
-
-    try:
-        ax.scatter(
-            position_array_ICS0.mean("keypoints")
-            .sel(space="x", individuals='track_0', time=f)
-            .values.flatten(),
-            position_array_ICS0.mean("keypoints")
-            .sel(space="y", individuals='track_0', time=f)
-            .values.flatten(),
-            s=100,
-            marker="o",
-            facecolors='none', edgecolors='r'
-            # cmap="tab20",
-        )
-    except KeyError:
-        print(f"KeyError: {f}")
-        continue
-    ax.set_title(f"Frame {f}")
-# for ind in position_array_ICS0.individuals:
-#     ax.scatter(
-#         position_array_ICS0.mean("keypoints")
-#         .sel(space="x", individuals=ind)
-#         .values.flatten(),
-#         position_array_ICS0.mean("keypoints")
-#         .sel(space="y", individuals=ind)
-#         .values.flatten(),
-#         s=1,
-#         cmap="tab20",
-#     )
-ax.set_aspect("equal")
-
-ax.set_xlabel("x (pixels)")
-ax.set_ylabel("y (pixels)")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Export data
