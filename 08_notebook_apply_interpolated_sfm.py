@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pandas as pd
 import trimesh
-from movement.io import load_poses, save_poses, load_bboxes
+from movement.io import load_poses, save_poses
 from scipy.spatial.transform import Rotation as R
 from utils import (
     compute_H_norm_to_pixel_coords,
@@ -37,7 +37,7 @@ sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_int
 
 # 2D data
 points_2d_file_zebras = data_dir / "20250325_2228_id.slp"
-points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
+points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
 
 
 # ODM data
@@ -48,8 +48,8 @@ camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select file
-points_2d_file = points_2d_file_zebras
-print(f"File: {points_2d_file.stem}")
+points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
+print(f"File: {points_2d_file.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transforms file
@@ -93,15 +93,14 @@ plane_normal, plane_center = compute_plane_normal_and_center(mesh)
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read 2D trajectories
 
-if points_2d_file.suffix == ".slp":
-    ds = load_poses.from_sleap_file(points_2d_file)
-elif points_2d_file.suffix == ".csv":
-    ds = load_bboxes.from_via_tracks_file(points_2d_file)
-    # add a keypoint coordinate 
-    ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
-    ds = ds.assign_coords({"keypoints":["centroid"]})
+ds = load_poses.from_sleap_file(points_2d_file)
 
-
+# from from movement.io import load_bboxes
+# if points_2d_file.suffix == ".csv":
+#     ds = load_bboxes.from_via_tracks_file(points_2d_file)
+#     # add a keypoint coordinate 
+#     ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
+#     ds = ds.assign_coords({"keypoints":["centroid"]})
 
 position = ds.position  # as xarray data array, time in frames
 position_homogeneous = position_array_to_homogeneous(position)
