@@ -222,6 +222,9 @@ print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Save 3D points in WCS - (original arbitrary units)
 
+# get string timestamp of  today in yyyymmdd_hhmmss
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
 # These arbitrary units should match the mesh units
 # Note that we don't apply any scaling factor here
 # since we don't expect to visualize these in napari
@@ -236,16 +239,13 @@ ds_3d_wcs = load_poses.from_numpy(
 ds_3d_wcs.attrs["source_file"] = ""
 ds_3d_wcs.attrs['units'] = 'pixels'
 
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
 slp_file = save_poses.to_sleap_analysis_file(
     ds_3d_wcs,
     data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D points in plane basis as movement dataset
+# Save 2D points in (scaled)plane basis as movement dataset
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
@@ -267,16 +267,13 @@ ds_2d_plane = load_poses.from_numpy(
 ds_2d_plane.attrs["source_file"] = ""
 ds_2d_plane.attrs['units'] = 'pixels'
 
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_plane,
     data_dir / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D points in plane coordinates projected to z=0 as movement dataset
+# Save 2D points in (scaled) plane coordinates projected to z=0 as movement dataset
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
@@ -298,9 +295,6 @@ ds_2d_z0 = load_poses.from_numpy(
 )
 ds_2d_z0.attrs["source_file"] = ""
 ds_2d_z0.attrs['units'] = 'pixels'
-
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_z0,
