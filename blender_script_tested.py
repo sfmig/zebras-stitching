@@ -7,7 +7,7 @@ import numpy as np
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-csv_dir = "/Users/sofia/swc/project_zebras/zebras-stitching/blender-csv"
+csv_dir = "/Users/sofia/swc/project_zebras/zebras-stitching/data/blender-csv-20250325_2228_id_sfm_interp_WCS_3d_20250516_155745"
 
 # mesh file
 mesh_file = "/Users/sofia/swc/project_zebras/datasets_step20_03_0indexing_masking/project_no_images/odm_texturing/odm_textured_model_geo.obj"
@@ -132,4 +132,4 @@ for csv_i, csv_filepath in enumerate(list_csv_filepaths):
         
 
     # Set thickness
-    curve_object.data.bevel_depth = 0.001 
+    curve_object.data.bevel_depth = 0.0015 
