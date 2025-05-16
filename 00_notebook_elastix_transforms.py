@@ -48,7 +48,9 @@ with open(output_file, "w") as f:
 
 for i in tqdm(range(1, video_data.shape[0])):
     # Track to avoid mixing up the frames
-    fixed_index = i
+    # itk-elastix computes transformations that map points 
+    # from the fixed image (f) domain to the moving image (f-1) domain.
+    fixed_index = i  
     moving_index = i - 1
 
     fixed = video_data[fixed_index]
