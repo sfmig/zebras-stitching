@@ -31,14 +31,26 @@ import matplotlib.pyplot as plt
 # Input data
 
 data_dir = Path("data")
+
+# Camera poses
 sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
-points_2d_file = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
+
+# 2D data
+points_2d_file_zebras = data_dir / "20250325_2228_id.slp"
+points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
+
 
 # ODM data
 # odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
 mesh_path = data_dir / "odm_data" / "odm_25dmesh.ply"  # odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
 orthophoto_corners_file = data_dir / "odm_data" / "odm_orthophoto_corners.txt"  # odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
 camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / "cameras.json"
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Select file
+points_2d_file = points_2d_file_zebras
+print(f"File: {points_2d_file.stem}")
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transforms file
 df_input = pd.read_csv(sfm_interpolated_file)
@@ -80,6 +92,7 @@ plane_normal, plane_center = compute_plane_normal_and_center(mesh)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read 2D trajectories
+
 if points_2d_file.suffix == ".slp":
     ds = load_poses.from_sleap_file(points_2d_file)
 elif points_2d_file.suffix == ".csv":
