@@ -24,7 +24,9 @@ from utils import (
 )
 
 import matplotlib.pyplot as plt
-%matplotlib widget
+
+# Uncomment for interactive plots
+# %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
 
@@ -33,10 +35,10 @@ sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_int
 points_2d_file = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
 
 # ODM data
-odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
-mesh_path = odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
-orthophoto_corners_file = odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
-camera_intrinsics = odm_dataset_dir / "cameras.json"
+# odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
+mesh_path = data_dir / "odm_data" / "odm_25dmesh.ply"  # odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
+orthophoto_corners_file = data_dir / "odm_data" / "odm_orthophoto_corners.txt"  # odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
+camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / "cameras.json"
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transforms file
 df_input = pd.read_csv(sfm_interpolated_file)
