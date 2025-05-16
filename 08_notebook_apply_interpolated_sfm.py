@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pandas as pd
 import trimesh
-from movement.io import load_poses, save_poses, load_bboxes
+from movement.io import load_poses, save_poses
 from scipy.spatial.transform import Rotation as R
 from utils import (
     compute_H_norm_to_pixel_coords,
@@ -31,14 +31,26 @@ import matplotlib.pyplot as plt
 # Input data
 
 data_dir = Path("data")
+
+# Camera poses
 sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
-points_2d_file = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv" #"20250325_2228_id.slp"
+
+# 2D data
+points_2d_file_zebras = data_dir / "20250325_2228_id.slp"
+points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
+
 
 # ODM data
 # odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
 mesh_path = data_dir / "odm_data" / "odm_25dmesh.ply"  # odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
 orthophoto_corners_file = data_dir / "odm_data" / "odm_orthophoto_corners.txt"  # odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
 camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / "cameras.json"
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Select file
+points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
+print(f"File: {points_2d_file.name}")
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transforms file
 df_input = pd.read_csv(sfm_interpolated_file)
@@ -80,15 +92,15 @@ plane_normal, plane_center = compute_plane_normal_and_center(mesh)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read 2D trajectories
-if points_2d_file.suffix == ".slp":
-    ds = load_poses.from_sleap_file(points_2d_file)
-elif points_2d_file.suffix == ".csv":
-    ds = load_bboxes.from_via_tracks_file(points_2d_file)
-    # add a keypoint coordinate 
-    ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
-    ds = ds.assign_coords({"keypoints":["centroid"]})
 
+ds = load_poses.from_sleap_file(points_2d_file)
 
+# from from movement.io import load_bboxes
+# if points_2d_file.suffix == ".csv":
+#     ds = load_bboxes.from_via_tracks_file(points_2d_file)
+#     # add a keypoint coordinate 
+#     ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
+#     ds = ds.assign_coords({"keypoints":["centroid"]})
 
 position = ds.position  # as xarray data array, time in frames
 position_homogeneous = position_array_to_homogeneous(position)
@@ -205,67 +217,17 @@ pt3D_plane_all = np.moveaxis(pt3D_plane_all, -1, 1)
 
 print(np.nanmax(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
+
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D points in plane basis as movement dataset
-# 2D points should be visualizable in napari
-
-# Apply scaling factor before saving
-# (world coordinates are normalised?)
-pt3D_plane_all *= max(image_width, image_height)
-
-ds_2d_plane = load_poses.from_numpy(
-    position_array=pt3D_plane_all[:,:2,:, :], # remove z-coordinates
-    confidence_array=ds.confidence.values,
-    individual_names=ds.individuals.values,
-    keypoint_names=ds.keypoints.values,
-    fps=None,
-    source_software='sfm-interpolated-pcs-2d',
-)
-ds_2d_plane.attrs["source_file"] = ""
-ds_2d_plane.attrs['units'] = 'pixels'
+# Save 3D points in WCS - (original arbitrary units)
 
 # get string timestamp of  today in yyyymmdd_hhmmss
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-slp_file = save_poses.to_sleap_analysis_file(
-    ds_2d_plane,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
-)
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 2D points in plane coordinates projected to z=0 as movement dataset
-# 2D points should be visualizable in napari
-
-# Apply scaling factor before saving
-# (world coordinates are normalised?)
-pt3D_world_all *= max(image_width, image_height)
-
-ds_2d_z0 = load_poses.from_numpy(
-    position_array=pt3D_world_all[:,:2,:, :], # remove z-coordinates
-    confidence_array=ds.confidence.values,
-    individual_names=ds.individuals.values,
-    keypoint_names=ds.keypoints.values,
-    fps=None,
-    source_software='sfm-interpolated-wcs-2d-z0',
-)
-ds_2d_z0.attrs["source_file"] = ""
-ds_2d_z0.attrs['units'] = 'pixels'
-
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-slp_file = save_poses.to_sleap_analysis_file(
-    ds_2d_z0,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
-)
-
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 3D points in WCS
-
-# Apply scaling factor before saving
-# (world coordinates are normalised?)
-pt3D_world_all *= max(image_width, image_height)
-
+# These arbitrary units should match the mesh units
+# Note that we don't apply any scaling factor here
+# since we don't expect to visualize these in napari
 ds_3d_wcs = load_poses.from_numpy(
     position_array=pt3D_world_all,
     confidence_array=ds.confidence.values,
@@ -277,16 +239,70 @@ ds_3d_wcs = load_poses.from_numpy(
 ds_3d_wcs.attrs["source_file"] = ""
 ds_3d_wcs.attrs['units'] = 'pixels'
 
-# get string timestamp of  today in yyyymmdd_hhmmss
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
 slp_file = save_poses.to_sleap_analysis_file(
     ds_3d_wcs,
     data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot 3D points (scaled)
+# Save 2D points in (scaled) plane basis as movement dataset
+# 2D points should be visualizable in napari
+
+# Apply scaling factor before saving
+# Note: the world coordinates from sfm are in arbitrary units, since the 
+# input data is not georeferenced. We scale by the max of the image 
+# dimensions for easier visualization in napari, but the units continue
+# to be arbitrary and have no physical meaning. However note that the relative
+# positions of the points are correct.
+pt3D_plane_all_scaled = pt3D_plane_all * max(image_width, image_height)
+
+ds_2d_plane = load_poses.from_numpy(
+    position_array=pt3D_plane_all_scaled[:,:2,:, :], # remove z-coordinates
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated-pcs-2d',
+)
+ds_2d_plane.attrs["source_file"] = ""
+ds_2d_plane.attrs['units'] = 'pixels'
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_2d_plane,
+    data_dir / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
+)
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Save 2D points in (scaled) plane coordinates projected to z=0 as movement dataset
+# 2D points should be visualizable in napari
+
+# Apply scaling factor before saving
+# Note: the world coordinates from sfm are in arbitrary units, since the 
+# input data is not georeferenced. We scale by the max of the image 
+# dimensions for easier visualization in napari, but the units continue
+# to be arbitrary and have no physical meaning. However note that the relative
+# positions of the points are correct.
+pt3D_world_all_scaled = pt3D_world_all * max(image_width, image_height)
+
+ds_2d_z0 = load_poses.from_numpy(
+    position_array=pt3D_world_all_scaled[:,:2,:, :], # remove z-coordinates
+    confidence_array=ds.confidence.values,
+    individual_names=ds.individuals.values,
+    keypoint_names=ds.keypoints.values,
+    fps=None,
+    source_software='sfm-interpolated-wcs-2d-z0',
+)
+ds_2d_z0.attrs["source_file"] = ""
+ds_2d_z0.attrs['units'] = 'pixels'
+
+slp_file = save_poses.to_sleap_analysis_file(
+    ds_2d_z0,
+    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
+)
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Plot 3D points 
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
