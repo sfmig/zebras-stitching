@@ -210,7 +210,11 @@ print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
-# (world coordinates are normalised?)
+# Note: the world coordinates from sfm are in arbitrary units, since the 
+# input data is not georeferenced. We scale by the max of the image 
+# dimensions for easier visualization in napari, but the units continue
+# to be arbitrary and have no physical meaning. However note that the relative
+# positions of the points are correct.
 pt3D_plane_all *= max(image_width, image_height)
 
 ds_2d_plane = load_poses.from_numpy(
@@ -237,7 +241,12 @@ slp_file = save_poses.to_sleap_analysis_file(
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
-# (world coordinates are normalised?)
+# Apply scaling factor before saving
+# Note: the world coordinates from sfm are in arbitrary units, since the 
+# input data is not georeferenced. We scale by the max of the image 
+# dimensions for easier visualization in napari, but the units continue
+# to be arbitrary and have no physical meaning. However note that the relative
+# positions of the points are correct.
 pt3D_world_all *= max(image_width, image_height)
 
 ds_2d_z0 = load_poses.from_numpy(
@@ -260,12 +269,11 @@ slp_file = save_poses.to_sleap_analysis_file(
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Save 3D points in WCS
+# Save 3D points in WCS - (original arbitrary units)
 
-# Apply scaling factor before saving
-# (world coordinates are normalised?)
-pt3D_world_all *= max(image_width, image_height)
-
+# These arbitrary units should match the mesh units
+# Note that we don't apply any scaling factor here
+# since we don't expect to visualize these in napari
 ds_3d_wcs = load_poses.from_numpy(
     position_array=pt3D_world_all,
     confidence_array=ds.confidence.values,
