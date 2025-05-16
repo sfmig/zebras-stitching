@@ -83,6 +83,7 @@ bpy.ops.object.light_add(type='SUN', location=(0, 0, 0))
 
 sun_light = bpy.data.lights["Sun"]
 sun_light.energy = 1.0  
+sun_light.use_shadow = False
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Get all CSV files in the directory
@@ -133,3 +134,6 @@ for csv_i, csv_filepath in enumerate(list_csv_filepaths):
 
     # Set thickness
     curve_object.data.bevel_depth = 0.0015 
+    
+    # Disable shadow casting for the curves
+    curve_object.display.show_shadows = False 
