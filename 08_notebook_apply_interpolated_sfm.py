@@ -254,10 +254,10 @@ slp_file = save_poses.to_sleap_analysis_file(
 # dimensions for easier visualization in napari, but the units continue
 # to be arbitrary and have no physical meaning. However note that the relative
 # positions of the points are correct.
-pt3D_plane_all *= max(image_width, image_height)
+pt3D_plane_all_scaled = pt3D_plane_all * max(image_width, image_height)
 
 ds_2d_plane = load_poses.from_numpy(
-    position_array=pt3D_plane_all[:,:2,:, :], # remove z-coordinates
+    position_array=pt3D_plane_all_scaled[:,:2,:, :], # remove z-coordinates
     confidence_array=ds.confidence.values,
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
@@ -286,10 +286,10 @@ slp_file = save_poses.to_sleap_analysis_file(
 # dimensions for easier visualization in napari, but the units continue
 # to be arbitrary and have no physical meaning. However note that the relative
 # positions of the points are correct.
-pt3D_world_all *= max(image_width, image_height)
+pt3D_world_all_scaled = pt3D_world_all * max(image_width, image_height)
 
 ds_2d_z0 = load_poses.from_numpy(
-    position_array=pt3D_world_all[:,:2,:, :], # remove z-coordinates
+    position_array=pt3D_world_all_scaled[:,:2,:, :], # remove z-coordinates
     confidence_array=ds.confidence.values,
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
@@ -309,7 +309,7 @@ slp_file = save_poses.to_sleap_analysis_file(
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot 3D points (scaled)
+# Plot 3D points 
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
