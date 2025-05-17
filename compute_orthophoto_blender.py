@@ -13,7 +13,7 @@ as separate polylines. Creates a virtual camera and orients its z-axis parallel
 to the normal of the mesh's best-fitting plane. It then renders the scene from
 the camera position.
 
-Blender version: 4.0.2
+Blender version: 4.4.3
 
 """
 
@@ -29,13 +29,15 @@ import mathutils
 # Input data
 data_dir = Path(__file__).parent / "data"
 reference_trajectory_file = "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean"
+# "20250325_2228_id_sfm_interp_WCS_3d_20250516_155745" for "uncleaned" trajectories
+# "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean" for "cleaned" trajectories
 csv_dir = data_dir / f"blender-csv-{reference_trajectory_file}"
 
 # Path to .obj mesh file output from OpenDroneMap
 opendronemap_dir = (
     Path(__file__).parents[1]
-    / "datasets_step20_03_0indexing_masking"
-    / "project_no_images"
+    / "datasets" #_step20_03_0indexing_masking"
+    / "project" #_no_images"
 )
 mesh_file = opendronemap_dir / "odm_texturing" / "odm_textured_model_geo.obj"
 
