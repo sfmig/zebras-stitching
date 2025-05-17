@@ -8,13 +8,14 @@ import numpy as np
 import xarray as xr
 from movement.io import load_bboxes, save_poses
 from movement.kinematics import compute_path_length, compute_speed
-
+from pathlib import Path
 
 # %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
 
-filename = "data/21Jan_007_tracked_trees_20250505_100631.csv"
+data_dir = Path(__file__).parent / "data"
+filename = data_dir / "21Jan_007_tracked_trees_20250505_100631.csv"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read VIA-tracks file as a movement dataset
@@ -127,7 +128,7 @@ plt.xlim(0, long_slow_trees_ds.time.size - 1);
 
 save_poses.to_sleap_analysis_file(
     long_slow_trees_ds,
-    file_path="data/21Jan_007_tracked_trees_reliable_sleap.h5",
+    file_path=data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5",
 )
 
 # %%

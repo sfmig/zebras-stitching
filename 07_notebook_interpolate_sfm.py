@@ -13,7 +13,8 @@ from scipy.spatial.transform import Rotation as R
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-sfm_keyframe_transforms_file = Path("data") / "sfm_keyframes_transforms_20250514_212616.csv"
+data_dir = Path(__file__).parent / "data"
+sfm_keyframe_transforms_file = data_dir / "sfm_keyframes_transforms_20250514_212616.csv"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Read the transformscsv file
@@ -67,6 +68,6 @@ df_interpolated = pd.DataFrame(
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 df_interpolated.to_csv(
-    Path("data") / f"{sfm_keyframe_transforms_file.stem}_interp_{timestamp}.csv", index=False)
+    data_dir / f"{sfm_keyframe_transforms_file.stem}_interp_{timestamp}.csv", index=False)
 
 # %%

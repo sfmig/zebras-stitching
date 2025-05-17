@@ -39,9 +39,11 @@ assert data_dir.exists()
 
 approach_to_path = {  # paths are relative to data_dir
     "itk-all": (
-        "itk-all-approach/20250325_2228_id_unwrapped_20250403_161408.h5"
+        "approach-itk-all/20250325_2228_id_unwrapped_20250403_161408.h5"
     ),
-    "sfm-pcs-2d": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745.h5", 
+    "sfm-pcs-2d": (
+        "approach-sfm-interp/20250325_2228_id_sfm_interp_PCS_2d_20250516_155745.h5" 
+    ),
 }
 
 # Select which approach to use

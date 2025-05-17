@@ -16,7 +16,7 @@ import csv
 # %matplotlib widget
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Data
-video_path = Path("/home/sminano/swc/project_zebras/videos/21Jan_007.mp4")
+video_path = Path(__file__).parent / "videos" / "21Jan_007.mp4"
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -170,7 +170,8 @@ for frame_idx, frame in enumerate(video_array):
 
 # timestamp
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = f"data/{video_path.stem}_tracked_detections_{timestamp}.csv"
+data_dir = Path(__file__).parent / "data"
+filename = data_dir / f"{video_path.stem}_tracked_trees_{timestamp}.csv"
 
 write_tracked_detections_to_csv(
     csv_file_path=filename,

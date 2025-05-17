@@ -16,7 +16,6 @@ the camera position.
 Blender version: 4.0.2
 
 """
-
 from datetime import datetime
 import bpy
 import csv
@@ -27,11 +26,12 @@ import mathutils
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-data_dir = Path("/Users/sofia/swc/project_zebras/zebras-stitching/data")
+data_dir = Path(__file__).parent / "data"  
 csv_dir = data_dir / "blender-csv-20250325_2228_id_sfm_interp_WCS_3d_20250516_155745"
 
-# mesh file
-mesh_file = "/Users/sofia/swc/project_zebras/datasets_step20_03_0indexing_masking/project_no_images/odm_texturing/odm_textured_model_geo.obj"
+# Path to .obj mesh file output from OpenDroneMap
+opendronemap_dir = Path(__file__).parents[1] / "datasets" / "project"
+mesh_file = opendronemap_dir / "odm_texturing" / "odm_textured_model_geo.obj"
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

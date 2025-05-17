@@ -451,7 +451,7 @@ ds_export.attrs["source_file"] = ""
 # get string timestamp of  today in yyyymmdd_hhmmss
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-export_dir = data_dir / "itk-all-approach"
+export_dir = data_dir / "approach-itk-all"
 slp_file = save_poses.to_sleap_analysis_file(
     ds_export,
     export_dir / f"{filename.stem}_unwrapped_{timestamp}.h5",

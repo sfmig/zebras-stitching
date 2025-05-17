@@ -78,7 +78,8 @@ for frame_filename in list_frame_filenames:
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Export transforms per keyframe as csv file
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-csv_path = Path("data") / f"sfm_keyframes_transforms_{timestamp}.csv"
+data_dir = Path(__file__).parent / "data"
+csv_path = data_dir / f"sfm_keyframes_transforms_{timestamp}.csv"
 
 # Write csv
 with open(csv_path, "w") as f:
