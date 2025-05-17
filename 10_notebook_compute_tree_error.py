@@ -48,7 +48,7 @@ filename_zebra_data = {
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select method used to unwrap trajectories to retrieve relevant data
 
-approach = "sfm-itk-interp"  # can be either "itk-all" or "sfm-interp" or "sfm-itk-interp"
+approach = "sfm-interp"  # can be either "itk-all" or "sfm-interp" or "sfm-itk-interp"
 path_tree_data = data_dir / data_subdir[approach] / filename_tree_data[approach]
 path_zebra_data = data_dir / data_subdir[approach] / filename_zebra_data[approach]
 
@@ -240,14 +240,19 @@ df = pd.DataFrame(
         dist_to_centroid_normalized["max"],
         dist_to_centroid_normalized["min"],
         dist_to_centroid_normalized["std"],
+        dist_to_centroid_normalized["n_samples"],
     ],
     index=[
-        "mean distance to centroid",
-        "max distance to centroid",
-        "min distance to centroid",
-        "std distance to centroid",
+        "mean",
+        "max",
+        "min",
+        "std",
+        "n_samples",
     ],
 ).T
+
+
+df["n_samples"] = df["n_samples"].astype(int)
 
 print(df.head())
 
@@ -258,7 +263,8 @@ df.to_latex(
     / data_subdir[approach]
     / f"trees_dist_to_centroid_normalized_{approach}_{timestamp}.tex",
     index=True,
+    float_format="%.3f",  
     caption=f"Distance to centroid normalized by median zebra body length. Approach: {approach}",
 )
 
-# %%
+ # %%
