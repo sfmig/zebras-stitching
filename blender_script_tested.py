@@ -10,7 +10,6 @@ Blender version: 4.0.2
 
 """
 
-
 from datetime import datetime
 import bpy
 import csv
@@ -33,7 +32,7 @@ mesh_file = "/Users/sofia/swc/project_zebras/datasets_step20_03_0indexing_maskin
 
 # offset added to the trajectories for visibility
 # (the trajectories are defined in the best-fitting plane)
-z_offset = 0.05  
+z_offset = 0.05
 
 
 plane_normal = np.array([-0.08907009, 0.08261507, -0.9925932])
@@ -186,7 +185,7 @@ camera_object.location = tuple(plane_center + camera_position_offset)
 
 # Create a rotation that maps the camera's local z-axis to the negative plane normal
 target_vector = mathutils.Vector(-plane_normal).normalized()
-rot_quat = target_vector.to_track_quat('Z', 'Y')  # Align Z to vector, keep Y as up
+rot_quat = target_vector.to_track_quat("Z", "Y")  # Align Z to vector, keep Y as up
 
 # Create a quaternion representing a 10° rotation around local Z
 z_rot_quat = mathutils.Quaternion((0, 0, 1), np.deg2rad(-35))
@@ -194,7 +193,7 @@ z_rot_quat = mathutils.Quaternion((0, 0, 1), np.deg2rad(-35))
 # Apply the rotations
 # To apply the rotation in z in the camera's local space, we need to apply the
 # rotation to the "world" coordinate system first, and then apply the camera pose to that.
-camera_object.rotation_mode = 'QUATERNION'
+camera_object.rotation_mode = "QUATERNION"
 camera_object.rotation_quaternion = rot_quat @ z_rot_quat
 
 
@@ -205,12 +204,16 @@ bpy.context.scene.camera = camera_object
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 bpy.context.scene.render.image_settings.file_format = "PNG"
-bpy.context.scene.render.filepath = str(data_dir / f"orthophoto_bestfit_plane_{timestamp}.png")
+bpy.context.scene.render.filepath = str(
+    data_dir / f"orthophoto_bestfit_plane_{timestamp}.png"
+)
 
 # Set the resolution for orthophoto
 bpy.context.scene.render.resolution_x = 1920  # width
 bpy.context.scene.render.resolution_y = 1080  # height
-bpy.context.scene.render.resolution_percentage = 100  # resolution percentage (100% for full resolution)
+bpy.context.scene.render.resolution_percentage = (
+    100  # resolution percentage (100% for full resolution)
+)
 bpy.context.scene.render.film_transparent = True  # Enable transparent background
 
 # Render the scene
