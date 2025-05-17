@@ -207,5 +207,11 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 bpy.context.scene.render.image_settings.file_format = "PNG"
 bpy.context.scene.render.filepath = str(data_dir / f"orthophoto_bestfit_plane_{timestamp}.png")
 
+# Set the resolution for orthophoto
+bpy.context.scene.render.resolution_x = 1920  # width
+bpy.context.scene.render.resolution_y = 1080  # height
+bpy.context.scene.render.resolution_percentage = 100  # resolution percentage (100% for full resolution)
+bpy.context.scene.render.film_transparent = True  # Enable transparent background
+
 # Render the scene
 bpy.ops.render.render(write_still=True)
