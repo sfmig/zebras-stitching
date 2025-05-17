@@ -1,3 +1,9 @@
+"""
+Notebook to export 3D trajectories as CSV files for each individual.
+
+We use these CSV files to import the trajectories into Blender.
+"""
+
 # %%
 from movement.io import load_poses
 from pathlib import Path
@@ -6,8 +12,8 @@ from pathlib import Path
 
 data_dir = Path("data")
 
-# "uncleaned" trajectories
-zebras_3d_file = data_dir / "20250325_2228_id_sfm_interp_WCS_3d_20250516_155745.h5"
+# "uncleaned" 3D trajectories
+zebras_3d_file = data_dir / "approach-sfm-interp" / "20250325_2228_id_sfm_interp_WCS_3d_20250516_155745.h5"
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

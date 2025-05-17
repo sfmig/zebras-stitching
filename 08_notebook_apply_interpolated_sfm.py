@@ -30,15 +30,19 @@ import matplotlib.pyplot as plt
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
 
-data_dir = Path("data")
+data_dir = Path(__file__).parent / "data"
 
 # Camera poses
-sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
+sfm_interpolated_file_dict = {
+    "approach-sfm-interp": data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv",
+    # "approach-sfm-itk-interp": data_dir / "/path/to/sfm/itk/interp.csv"
+}
 
-# 2D data
-points_2d_file_zebras = data_dir / "20250325_2228_id.slp"
-points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
-
+# 2D data dictionary
+points_2d_file_dict = {
+    "zebras": data_dir / "20250325_2228_id.slp",
+    "trees": data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
+}
 
 # ODM data
 # odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
@@ -47,8 +51,19 @@ orthophoto_corners_file = data_dir / "odm_data" / "odm_orthophoto_corners.txt"  
 camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / "cameras.json"
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Select file
-points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
+# Select poses to use
+
+# select file with interpolated poses
+approach_ref_name = "approach-sfm-interp"  # or "approach-sfm-itk-interp"
+sfm_interpolated_file = sfm_interpolated_file_dict[approach_ref_name]
+print(f"Using poses from '{approach_ref_name}'")
+print(f"File: {sfm_interpolated_file.name}")
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Select data to transform
+data_ref_name = "zebras"  # can be either "zebras" or "trees"
+points_2d_file = points_2d_file_dict[data_ref_name]
+print(f"Using 2d data file: {points_2d_file.name}")
 print(f"File: {points_2d_file.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -241,7 +256,7 @@ ds_3d_wcs.attrs['units'] = 'pixels'
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_3d_wcs,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
+    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -269,7 +284,7 @@ ds_2d_plane.attrs['units'] = 'pixels'
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_plane,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
+    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -297,7 +312,7 @@ ds_2d_z0.attrs['units'] = 'pixels'
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_z0,
-    data_dir / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
+    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
 )
 
 
