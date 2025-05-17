@@ -1,3 +1,17 @@
+"""
+Script to render a custom orthophoto using Blender.
+
+Loads the mesh .obj file and represents the trajectories of each individual
+as separate polylines. Creates a virtual camera and orients its z-axis parallel
+to the normal of the mesh's best-fitting plane. It then renders the scene from
+the camera position.
+
+Blender version: 4.0.2
+
+"""
+
+
+from datetime import datetime
 import bpy
 import csv
 from pathlib import Path
@@ -17,10 +31,16 @@ mesh_file = "/Users/sofia/swc/project_zebras/datasets_step20_03_0indexing_maskin
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Other input parameters
 
-z_offset = 0.05  # added to the trajectories for visibility
+# offset added to the trajectories for visibility
+# (the trajectories are defined in the best-fitting plane)
+z_offset = 0.05  
+
 
 plane_normal = np.array([-0.08907009, 0.08261507, -0.9925932])
 plane_center = np.array([1.24176788, 0.15539519, -1.00927566])
+
+# the camera is placed at the plane centre plus this offset
+camera_position_offset = np.array([0.40, -0.40, 4.75])
 
 # Define colors array
 colors_array = np.array(
@@ -161,23 +181,31 @@ camera_data = bpy.data.cameras.new(name="Camera")
 camera_object = bpy.data.objects.new("CameraObject", camera_data)
 bpy.context.collection.objects.link(camera_object)
 
-# Set the camera position and rotation
-camera_object.location = tuple(plane_center + np.array([0, 0, 5]))
+# Set the camera position
+camera_object.location = tuple(plane_center + camera_position_offset)
 
-# initial rotation
-camera_object.rotation_euler = (0, 0, 0)  # Set your desired rotation (in radians)
+# Create a rotation that maps the camera's local z-axis to the negative plane normal
+target_vector = mathutils.Vector(-plane_normal).normalized()
+rot_quat = target_vector.to_track_quat('Z', 'Y')  # Align Z to vector, keep Y as up
 
-# Set the camera's rotation
-direction = mathutils.Vector(-plane_normal)
-camera_object.rotation_euler = direction.to_track_quat("Z", "X").to_euler()
+# Create a quaternion representing a 10° rotation around local Z
+z_rot_quat = mathutils.Quaternion((0, 0, 1), np.deg2rad(-35))
 
+# Apply the rotations
+# To apply the rotation in z in the camera's local space, we need to apply the
+# rotation to the "world" coordinate system first, and then apply the camera pose to that.
+camera_object.rotation_mode = 'QUATERNION'
+camera_object.rotation_quaternion = rot_quat @ z_rot_quat
+
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Render view from the camera with default camera settings
 # Set the camera as the active camera
 bpy.context.scene.camera = camera_object
 
-# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Set render settings
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 bpy.context.scene.render.image_settings.file_format = "PNG"
-bpy.context.scene.render.filepath = str(data_dir / "render.png")
+bpy.context.scene.render.filepath = str(data_dir / f"orthophoto_bestfit_plane_{timestamp}.png")
 
 # Render the scene
 bpy.ops.render.render(write_still=True)
