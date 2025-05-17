@@ -35,10 +35,11 @@ data_dir = Path("data")
 # Camera poses
 sfm_interpolated_file = data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv"
 
-# 2D data
-points_2d_file_zebras = data_dir / "20250325_2228_id.slp"
-points_2d_file_trees = data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
-
+# 2D data dictionary
+points_2d_file_dict = {
+    "zebras": data_dir / "20250325_2228_id.slp",
+    "trees": data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
+}
 
 # ODM data
 # odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
@@ -48,7 +49,8 @@ camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select file
-points_2d_file = points_2d_file_zebras #  points_2d_file_trees # 
+source_data = "zebras"  # can be either "zebras" or "trees"
+points_2d_file = points_2d_file_dict[source_data]
 print(f"File: {points_2d_file.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
