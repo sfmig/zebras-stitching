@@ -2,3 +2,5 @@
 *.jpg
 *.jpeg
 *.mp4
+# Include orthophoto with best-fit plane
+!data/orthophoto_sfm_interp_WCS_3d_bestfit_plane_20250517_114420.png
