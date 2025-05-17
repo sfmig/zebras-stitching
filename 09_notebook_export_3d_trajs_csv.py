@@ -1,3 +1,9 @@
+"""
+Notebook to export 3D trajectories as CSV files for each individual.
+
+We use these CSV files to import the trajectories into Blender.
+"""
+
 # %%
 from movement.io import load_poses
 from pathlib import Path
