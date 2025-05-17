@@ -1,5 +1,5 @@
-# %%
-# imports
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 from datetime import datetime
 from pathlib import Path
 from matplotlib import pyplot as plt
@@ -10,48 +10,51 @@ import numpy as np
 import pandas as pd
 
 # for interactive plots
-%matplotlib widget
+# %matplotlib widget
 
-# %%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
 repo_root = Path(__file__).parent
 data_dir = repo_root / "data"
 assert data_dir.exists()
 
 
-# subdir for data per method
-data_subdir = { # paths relative to data_dir
+# Paths to subdirectories per method
+# paths relative to data_dir
+data_subdir = {
     "itk-all": "approach-itk-all",
     "sfm-pcs-2d": "approach-sfm-interp",
 }
 
-# unwrapped tree data per method
-# (We don't need to clean the tree data, since it is already "reliable")
-filename_tree_data = {  # paths relative to relevant subdir in data_dir
+# Filenames of unwrapped tree data per method
+# (we don't need to clean the tree data, since it is already "reliable")
+# paths relative to relevant subdir in data_dir
+filename_tree_data = {  
     "itk-all": "21Jan_007_tracked_trees_reliable_sleap_unwrapped_20250516_154821.h5",
     "sfm-pcs-2d": "21Jan_007_tracked_trees_reliable_sleap_sfm_interp_PCS_2d_20250516_160103.h5",
 }
 
-# clean zebra data per method
+# Filenames of clean zebra data per method
 # (we use it to get the median body length)
-filename_zebra_data = {  # paths relative to relevant subdir in data_dir
+# paths relative to relevant subdir in data_dir
+filename_zebra_data = {
     "itk-all": "20250325_2228_id_unwrapped_20250403_161408_clean.h5",
     "sfm-pcs-2d": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean.h5",
 }
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Select method used to unwrap trajectories
+# Select method used to unwrap trajectories to retrieve relevant data
 
 approach = "sfm-pcs-2d"  # can be either "itk-all" or "sfm-pcs-2d"
 path_tree_data = data_dir / data_subdir[approach] / filename_tree_data[approach]
 path_zebra_data = data_dir / data_subdir[approach] / filename_zebra_data[approach]
 
 print(f"Using approach: {approach}")
-print(f"Tree data path: {path_tree_data.name}")
-print(f"Zebra data path: {path_zebra_data.name}")
+print(f"Tree data path: {path_tree_data.parent.name}/{path_tree_data.name}")
+print(f"Zebra data path: {path_zebra_data.parent.name}/{path_zebra_data.name}")
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Compute median zebra body length 
+# Compute median zebra body length
 
 ds_zebras = load_poses.from_file(path_zebra_data, source_software="SLEAP")
 
@@ -125,6 +128,8 @@ for tree_id in ds_trees.individuals.values:
     )
     distance_to_centroid_per_tree[tree_id] = {
         "mean": np.nanmean(dist_to_centroid),
+        "max": np.nanmax(dist_to_centroid),
+        "min": np.nanmin(dist_to_centroid),
         "std": np.nanstd(dist_to_centroid),
     }
 
@@ -133,6 +138,14 @@ for tree_id in ds_trees.individuals.values:
 dist_to_centroid_normalized = {
     "mean": {
         tree_id: distance_to_centroid_per_tree[tree_id]["mean"] / body_length_median
+        for tree_id in ds_trees.individuals.values
+    },
+    "max": {
+        tree_id: distance_to_centroid_per_tree[tree_id]["max"] / body_length_median
+        for tree_id in ds_trees.individuals.values
+    },
+    "min": {
+        tree_id: distance_to_centroid_per_tree[tree_id]["min"] / body_length_median
         for tree_id in ds_trees.individuals.values
     },
     "std": {
@@ -198,15 +211,30 @@ ax.set_title(f" Tree positions - {approach}")
 # Export results as latex table
 
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+# Define dataframe
 df = pd.DataFrame(
-    data=[dist_to_centroid_normalized["mean"], 
-    dist_to_centroid_normalized['std']], 
-    index=["mean distance to centroid","std distance to centroid"]
+    data=[
+        dist_to_centroid_normalized["mean"],
+        dist_to_centroid_normalized["max"],
+        dist_to_centroid_normalized["min"],
+        dist_to_centroid_normalized["std"],
+    ],
+    index=[
+        "mean distance to centroid",
+        "max distance to centroid",
+        "min distance to centroid",
+        "std distance to centroid",
+    ],
 ).T
+
+print(df.head())
+
+# Export to latex
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 df.to_latex(
-    data_dir / data_subdir[approach] / f"trees_dist_to_centroid_normalized_{approach}_{timestamp}.tex",
+    data_dir
+    / data_subdir[approach]
+    / f"trees_dist_to_centroid_normalized_{approach}_{timestamp}.tex",
     index=True,
     caption=f"Distance to centroid normalized by median zebra body length. Approach: {approach}",
 )
