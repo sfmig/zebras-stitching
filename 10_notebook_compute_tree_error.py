@@ -23,7 +23,8 @@ assert data_dir.exists()
 # paths relative to data_dir
 data_subdir = {
     "itk-all": "approach-itk-all",
-    "sfm-pcs-2d": "approach-sfm-interp",
+    "sfm-interp": "approach-sfm-interp",
+    "sfm-itk-interp": "approach-sfm-itk-interp",
 }
 
 # Filenames of unwrapped tree data per method
@@ -31,7 +32,8 @@ data_subdir = {
 # paths relative to relevant subdir in data_dir
 filename_tree_data = {  
     "itk-all": "21Jan_007_tracked_trees_reliable_sleap_unwrapped_20250516_154821.h5",
-    "sfm-pcs-2d": "21Jan_007_tracked_trees_reliable_sleap_sfm_interp_PCS_2d_20250516_160103.h5",
+    "sfm-interp": "21Jan_007_tracked_trees_reliable_sleap_sfm_interp_PCS_2d_20250516_160103.h5",
+    "sfm-itk-interp": "21Jan_007_tracked_trees_reliable_sleap_sfm_itk_interp_PCS_2d_20250517_231433.h5",
 }
 
 # Filenames of clean zebra data per method
@@ -39,13 +41,14 @@ filename_tree_data = {
 # paths relative to relevant subdir in data_dir
 filename_zebra_data = {
     "itk-all": "20250325_2228_id_unwrapped_20250403_161408_clean.h5",
-    "sfm-pcs-2d": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean.h5",
+    "sfm-interp": "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean.h5",
+    "sfm-itk-interp": "20250325_2228_id_sfm_itk_interp_PCS_2d_20250517_230807_clean.h5",
 }
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select method used to unwrap trajectories to retrieve relevant data
 
-approach = "sfm-pcs-2d"  # can be either "itk-all" or "sfm-pcs-2d"
+approach = "sfm-itk-interp"  # can be either "itk-all" or "sfm-interp" or "sfm-itk-interp"
 path_tree_data = data_dir / data_subdir[approach] / filename_tree_data[approach]
 path_zebra_data = data_dir / data_subdir[approach] / filename_zebra_data[approach]
 
@@ -131,6 +134,7 @@ for tree_id in ds_trees.individuals.values:
         "max": np.nanmax(dist_to_centroid),
         "min": np.nanmin(dist_to_centroid),
         "std": np.nanstd(dist_to_centroid),
+        "n_samples": np.sum(~np.isnan(dist_to_centroid))
     }
 
 
@@ -152,13 +156,31 @@ dist_to_centroid_normalized = {
         tree_id: distance_to_centroid_per_tree[tree_id]["std"] / body_length_median
         for tree_id in ds_trees.individuals.values
     },
+    "n_samples": {
+        tree_id: distance_to_centroid_per_tree[tree_id]["n_samples"]
+        for tree_id in ds_trees.individuals.values
+    },
 }
 
 # Print mean across all trees
+# TODO: maybe rather than mean of means, use weighted average, weighted by number of samples
+# print(
+#     "Mean normalized distance to centroid across all trees: "
+#     f"{np.mean(list(dist_to_centroid_normalized['mean'].values()))}"
+# )
+
+# Print mean across all trees
+list_mean_per_tree = list(dist_to_centroid_normalized['mean'].values())
+list_n_samples_per_tree = list(dist_to_centroid_normalized['n_samples'].values())
+list_weights = list_n_samples_per_tree / np.sum(list_n_samples_per_tree)
+
+
 print(
-    "Mean normalized distance to centroid across all trees: "
-    f"{np.mean(list(dist_to_centroid_normalized['mean'].values()))}"
+    "Weighted mean normalized distance to centroid across all trees: "
+    f"{np.sum(list_mean_per_tree * list_weights)}"
 )
+
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Plot

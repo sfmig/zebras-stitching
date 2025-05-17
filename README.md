@@ -10,3 +10,8 @@ conda create -n zebras-env python=3.11 -y
 conda activate zebras-env
 pip install -r requirements.txt
 ```
+
+
+## Notebooks
+
+This repository explores 
