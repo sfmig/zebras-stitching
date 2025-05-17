@@ -3,7 +3,7 @@ Script to render a custom orthophoto using Blender.
 
 To run this script using Blender's Python interpreter, run the following command:
 
-blender --background --python path/to/blender_script_tested.py
+blender --background --python path/to/compute_orthophoto_blender.py
 
 Alternatively, you can copy and paste the content into Blender's scripting editor 
 and run it from there.
