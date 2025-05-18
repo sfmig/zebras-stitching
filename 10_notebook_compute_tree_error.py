@@ -162,14 +162,7 @@ dist_to_centroid_normalized = {
     },
 }
 
-# Print mean across all trees
-# TODO: maybe rather than mean of means, use weighted average, weighted by number of samples
-# print(
-#     "Mean normalized distance to centroid across all trees: "
-#     f"{np.mean(list(dist_to_centroid_normalized['mean'].values()))}"
-# )
-
-# Print mean across all trees
+# Print weighted mean across all trees
 list_mean_per_tree = list(dist_to_centroid_normalized['mean'].values())
 list_n_samples_per_tree = list(dist_to_centroid_normalized['n_samples'].values())
 list_weights = list_n_samples_per_tree / np.sum(list_n_samples_per_tree)
