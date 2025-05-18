@@ -167,10 +167,11 @@ list_mean_per_tree = list(dist_to_centroid_normalized['mean'].values())
 list_n_samples_per_tree = list(dist_to_centroid_normalized['n_samples'].values())
 list_weights = list_n_samples_per_tree / np.sum(list_n_samples_per_tree)
 
+weighted_mean = np.sum(list_mean_per_tree * list_weights)
 
 print(
     "Weighted mean normalized distance to centroid across all trees: "
-    f"{np.sum(list_mean_per_tree * list_weights)}"
+    f"{weighted_mean}"
 )
 
 
@@ -257,7 +258,10 @@ df.to_latex(
     / f"trees_dist_to_centroid_normalized_{approach}_{timestamp}.tex",
     index=True,
     float_format="%.3f",  
-    caption=f"Distance to centroid normalized by median zebra body length. Approach: {approach}",
+    caption=(
+        f"Distance to centroid normalized by median zebra body length. Approach: {approach}. "
+        f"Weighted normalised mean: {weighted_mean:.3f} (body length units)"
+    ),
 )
 
  # %%
