@@ -20,7 +20,7 @@ from utils import (
     ray_plane_intersection,
     get_camera_intrinsic_matrix,
     get_orthophoto_corners_in_3d,
-    compute_Q_world2plane
+    compute_Q_world2plane,
 )
 
 import matplotlib.pyplot as plt
@@ -34,27 +34,38 @@ data_dir = Path(__file__).parent / "data"
 
 # Camera poses
 sfm_interpolated_file_dict = {
-    "approach-sfm-interp": data_dir / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv",
-    # "approach-sfm-itk-interp": data_dir / "/path/to/sfm/itk/interp.csv"
+    "sfm-interp": data_dir
+    / "sfm_keyframes_transforms_20250514_212616_interp_20250514_223104.csv",
+    "sfm-itk-interp": data_dir
+    / "sfm_keyframes_transforms_20250514_212616_ITK_interp_20250517_225813.csv",
 }
 
 # 2D data dictionary
 points_2d_file_dict = {
     "zebras": data_dir / "20250325_2228_id.slp",
-    "trees": data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5"
+    "trees": data_dir / "21Jan_007_tracked_trees_reliable_sleap.h5",
 }
 
 # ODM data
 # odm_dataset_dir = Path(__file__).parents[1] / "datasets/project"
-mesh_path = data_dir / "odm_data" / "odm_25dmesh.ply"  # odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
-orthophoto_corners_file = data_dir / "odm_data" / "odm_orthophoto_corners.txt"  # odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
-camera_intrinsics = data_dir / "odm_data" / "cameras.json"  # odm_dataset_dir / "cameras.json"
+mesh_path = (
+    data_dir / "odm_data" / "odm_25dmesh.ply"
+)  # odm_dataset_dir / "odm_meshing/odm_25dmesh.ply"
+orthophoto_corners_file = (
+    data_dir / "odm_data" / "odm_orthophoto_corners.txt"
+)  # odm_dataset_dir / "odm_orthophoto/odm_orthophoto_corners.txt"
+camera_intrinsics = (
+    data_dir / "odm_data" / "cameras.json"
+)  # odm_dataset_dir / "cameras.json"
+
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Select poses to use
 
 # select file with interpolated poses
-approach_ref_name = "approach-sfm-interp"  # or "approach-sfm-itk-interp"
+approach_ref_name = (
+    "sfm-itk-interp"  # "approach-sfm-interp" or "approach-sfm-itk-interp"
+)
 sfm_interpolated_file = sfm_interpolated_file_dict[approach_ref_name]
 print(f"Using poses from '{approach_ref_name}'")
 print(f"File: {sfm_interpolated_file.name}")
@@ -81,7 +92,7 @@ rots_cam_to_world_interp = {
                 "R_cam_to_world_as_rotvec_y",
                 "R_cam_to_world_as_rotvec_z",
             ]
-        ].values
+        ].values,
     )
 }
 
@@ -90,9 +101,7 @@ t_cam_to_world_interp = {
     frame_idx: t_xyz
     for frame_idx, t_xyz in zip(
         df_input["frame_index"].values,
-        df_input[
-            ["t_cam_to_world_x", "t_cam_to_world_y", "t_cam_to_world_z"]
-        ].values
+        df_input[["t_cam_to_world_x", "t_cam_to_world_y", "t_cam_to_world_z"]].values,
     )
 }
 
@@ -110,13 +119,6 @@ plane_normal, plane_center = compute_plane_normal_and_center(mesh)
 
 ds = load_poses.from_sleap_file(points_2d_file)
 
-# from from movement.io import load_bboxes
-# if points_2d_file.suffix == ".csv":
-#     ds = load_bboxes.from_via_tracks_file(points_2d_file)
-#     # add a keypoint coordinate 
-#     ds = ds.expand_dims(dim="keypoints", axis=-2).copy()
-#     ds = ds.assign_coords({"keypoints":["centroid"]})
-
 position = ds.position  # as xarray data array, time in frames
 position_homogeneous = position_array_to_homogeneous(position)
 position_homogeneous_shape = (
@@ -129,7 +131,9 @@ print(position_homogeneous)
 # Camera parameters
 
 # Get camera intrinsic matrix in pixel coordinates
-K_camera_intrinsic = get_camera_intrinsic_matrix(camera_intrinsics, in_pixel_coords=True)
+K_camera_intrinsic = get_camera_intrinsic_matrix(
+    camera_intrinsics, in_pixel_coords=True
+)
 
 # Get camera width and height
 with open(camera_intrinsics, "r") as f:
@@ -147,12 +151,11 @@ list_3D_points_per_frame = []
 shape_with_space_last = position_homogeneous.sel(time=0).T.shape  # space dim last
 
 for frame_idx in df_input["frame_index"].values:
-
     # Get 2D (unnormalied) pixel **homogeneous** coordinates of points at this frame
     # (M,3 array, with M = total number of points)
     pt2D_pixels_homogeneous = position_homogeneous.sel(time=frame_idx).values.T.reshape(
         -1, 3
-    ) # transpose to get space dim last
+    )  # transpose to get space dim last
 
     # Compute *normalised* coordinates in camera coordinate system (aka bearings)
     # K is the camera intrinsic matrix, transforms from CCS -> ICS
@@ -165,7 +168,7 @@ for frame_idx in df_input["frame_index"].values:
     # Compute depth from intersection of bearings with plane
     # 1- compute free bearing vectors in world coordinates
     bearings_rotated_to_wcs = (
-        rots_cam_to_world_interp[frame_idx].as_matrix() 
+        rots_cam_to_world_interp[frame_idx].as_matrix()
         @ pt2D_bearings_homogeneous_ccs.T
     ).T
     bearings_rotated_to_wcs = bearings_rotated_to_wcs / np.linalg.norm(
@@ -179,8 +182,7 @@ for frame_idx in df_input["frame_index"].values:
 
     pt3D_world_normalized = ray_plane_intersection(
         ray_origins=np.tile(
-            t_cam_to_world_interp[frame_idx], 
-            (sum(~slc_nan_bearings), 1)
+            t_cam_to_world_interp[frame_idx], (sum(~slc_nan_bearings), 1)
         ),
         ray_directions_unit=bearings_rotated_to_wcs[~slc_nan_bearings, :],
         plane_normal=plane_normal,
@@ -203,26 +205,32 @@ print(pt3D_world_all.shape)  # frame, space, kpts, individuals
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Compute change of basis to plane basis
 
-# The plane coordinate system: 
+# The plane coordinate system:
 # origin at corner_xmax_ymin
 # x-axis parallel to vector from corner_xmax_ymin to corner_xmin_ymin
 # z-axis parallel to plane normal
-Q_world2plane = compute_Q_world2plane(orthophoto_corners_file, plane_normal, plane_center)
+Q_world2plane = compute_Q_world2plane(
+    orthophoto_corners_file, plane_normal, plane_center
+)
 
 # Check: express orthophoto corners in the plane basis
 # z-coord should be 0 and last point should be (0,0)
 orthophoto_corners_3d = get_orthophoto_corners_in_3d(
     orthophoto_corners_file, plane_normal, plane_center
 )
-corner_xmax_ymin = orthophoto_corners_3d[-1,:]
-orthophoto_corners_3d_plane = (Q_world2plane @ (orthophoto_corners_3d - corner_xmax_ymin).T).T
+corner_xmax_ymin = orthophoto_corners_3d[-1, :]
+orthophoto_corners_3d_plane = (
+    Q_world2plane @ (orthophoto_corners_3d - corner_xmax_ymin).T
+).T
 print(orthophoto_corners_3d_plane)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Transform 3D points to plane basis
 pt3D_plane_all = (
-    Q_world2plane # (3,3)
-    @ (np.moveaxis(pt3D_world_all, 1, -1) - corner_xmax_ymin)[..., None] # (6293, 2, 44, 3, 1)
+    Q_world2plane  # (3,3)
+    @ (np.moveaxis(pt3D_world_all, 1, -1) - corner_xmax_ymin)[
+        ..., None
+    ]  # (6293, 2, 44, 3, 1)
     # we move the array axes to the end as per numpy.matmul convention
     # https://numpy.org/doc/2.0/reference/generated/numpy.matmul.html --> Notes
 ).squeeze(-1)
@@ -230,8 +238,8 @@ pt3D_plane_all = (
 # Reorder axes to (time, space, kpts, individuals)
 pt3D_plane_all = np.moveaxis(pt3D_plane_all, -1, 1)
 
-print(np.nanmax(pt3D_plane_all[:,2,:,:]))  # should be almost 0
-print(np.nanmin(pt3D_plane_all[:,2,:,:]))  # should be almost 0
+print(np.nanmax(pt3D_plane_all[:, 2, :, :]))  # should be almost 0
+print(np.nanmin(pt3D_plane_all[:, 2, :, :]))  # should be almost 0
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -249,14 +257,18 @@ ds_3d_wcs = load_poses.from_numpy(
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
     fps=None,
-    source_software='sfm-interpolated-wcs-3d',
+    source_software="sfm-interpolated-wcs-3d",
 )
 ds_3d_wcs.attrs["source_file"] = ""
-ds_3d_wcs.attrs['units'] = 'pixels'
+ds_3d_wcs.attrs["units"] = "pixels"
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_3d_wcs,
-    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_WCS_3d_{timestamp}.h5",
+    (
+        data_dir
+        / f"approach-{approach_ref_name}"
+        / f"{points_2d_file.stem}_{approach_ref_name.replace('-', '_')}_WCS_3d_{timestamp}.h5"
+    ),
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -264,27 +276,29 @@ slp_file = save_poses.to_sleap_analysis_file(
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
-# Note: the world coordinates from sfm are in arbitrary units, since the 
-# input data is not georeferenced. We scale by the max of the image 
+# Note: the world coordinates from sfm are in arbitrary units, since the
+# input data is not georeferenced. We scale by the max of the image
 # dimensions for easier visualization in napari, but the units continue
 # to be arbitrary and have no physical meaning. However note that the relative
 # positions of the points are correct.
 pt3D_plane_all_scaled = pt3D_plane_all * max(image_width, image_height)
 
 ds_2d_plane = load_poses.from_numpy(
-    position_array=pt3D_plane_all_scaled[:,:2,:, :], # remove z-coordinates
+    position_array=pt3D_plane_all_scaled[:, :2, :, :],  # remove z-coordinates
     confidence_array=ds.confidence.values,
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
     fps=None,
-    source_software='sfm-interpolated-pcs-2d',
+    source_software="sfm-interpolated-pcs-2d",
 )
 ds_2d_plane.attrs["source_file"] = ""
-ds_2d_plane.attrs['units'] = 'pixels'
+ds_2d_plane.attrs["units"] = "pixels"
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_plane,
-    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_PCS_2d_{timestamp}.h5",
+    data_dir
+    / f"approach-{approach_ref_name}"
+    / f"{points_2d_file.stem}_{approach_ref_name.replace('-', '_')}_PCS_2d_{timestamp}.h5",
 )
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -292,32 +306,34 @@ slp_file = save_poses.to_sleap_analysis_file(
 # 2D points should be visualizable in napari
 
 # Apply scaling factor before saving
-# Note: the world coordinates from sfm are in arbitrary units, since the 
-# input data is not georeferenced. We scale by the max of the image 
+# Note: the world coordinates from sfm are in arbitrary units, since the
+# input data is not georeferenced. We scale by the max of the image
 # dimensions for easier visualization in napari, but the units continue
 # to be arbitrary and have no physical meaning. However note that the relative
 # positions of the points are correct.
 pt3D_world_all_scaled = pt3D_world_all * max(image_width, image_height)
 
 ds_2d_z0 = load_poses.from_numpy(
-    position_array=pt3D_world_all_scaled[:,:2,:, :], # remove z-coordinates
+    position_array=pt3D_world_all_scaled[:, :2, :, :],  # remove z-coordinates
     confidence_array=ds.confidence.values,
     individual_names=ds.individuals.values,
     keypoint_names=ds.keypoints.values,
     fps=None,
-    source_software='sfm-interpolated-wcs-2d-z0',
+    source_software="sfm-interpolated-wcs-2d-z0",
 )
 ds_2d_z0.attrs["source_file"] = ""
-ds_2d_z0.attrs['units'] = 'pixels'
+ds_2d_z0.attrs["units"] = "pixels"
 
 slp_file = save_poses.to_sleap_analysis_file(
     ds_2d_z0,
-    data_dir / approach_ref_name / f"{points_2d_file.stem}_sfm_interp_WCS_2d_z0_{timestamp}.h5",
+    data_dir
+    / f"approach-{approach_ref_name}"
+    / f"{points_2d_file.stem}_{approach_ref_name.replace('-', '_')}_WCS_2d_z0_{timestamp}.h5",
 )
 
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# Plot 3D points 
+# Plot 3D points
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection="3d")
