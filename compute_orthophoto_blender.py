@@ -5,7 +5,7 @@ To run this script using Blender's Python interpreter, run the following command
 
 blender --background --python path/to/compute_orthophoto_blender.py
 
-Alternatively, you can copy and paste the content into Blender's scripting editor 
+Alternatively, you can copy and paste the content into Blender's scripting editor
 and run it from there.
 
 Loads the mesh .obj file and represents the trajectories of each individual
@@ -13,9 +13,10 @@ as separate polylines. Creates a virtual camera and orients its z-axis parallel
 to the normal of the mesh's best-fitting plane. It then renders the scene from
 the camera position.
 
-Blender version: 4.0.2
+Blender version: 4.4.3
 
 """
+
 from datetime import datetime
 import bpy
 import csv
@@ -26,11 +27,18 @@ import mathutils
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # Input data
-data_dir = Path(__file__).parent / "data"  
-csv_dir = data_dir / "blender-csv-20250325_2228_id_sfm_interp_WCS_3d_20250516_155745"
+data_dir = Path(__file__).parent / "data"
+reference_trajectory_file = "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean"
+# "20250325_2228_id_sfm_interp_WCS_3d_20250516_155745" for "uncleaned" trajectories
+# "20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean" for "cleaned" trajectories
+csv_dir = data_dir / f"blender-csv-{reference_trajectory_file}"
 
 # Path to .obj mesh file output from OpenDroneMap
-opendronemap_dir = Path(__file__).parents[1] / "datasets" / "project"
+opendronemap_dir = (
+    Path(__file__).parents[1]
+    / "datasets" #_step20_03_0indexing_masking"
+    / "project" #_no_images"
+)
 mesh_file = opendronemap_dir / "odm_texturing" / "odm_textured_model_geo.obj"
 
 
@@ -98,17 +106,17 @@ colors_array = np.array(
     ]
 )
 
-def main(): 
+
+def main():
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Clear pre-existing objects
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete()
 
-
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load mesh file
     bpy.ops.wm.obj_import(
-        filepath=mesh_file,
+        filepath=str(mesh_file),
         directory=str(Path(mesh_file).parent),
         files=[
             {"name": "odm_textured_model_geo.obj", "name": "odm_textured_model_geo.obj"}
@@ -129,7 +137,6 @@ def main():
     # Get all CSV files in the directory
     list_csv_filepaths = list(Path(csv_dir).glob("*.csv"))
 
-
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Create a curve for each CSV file
     for csv_i, csv_filepath in enumerate(list_csv_filepaths):
@@ -140,7 +147,9 @@ def main():
             points = [(float(x), float(y), float(z) + z_offset) for x, y, z in reader]
 
         # Create a new curve data object
-        curve_data = bpy.data.curves.new(name=f"polyline-{csv_filepath.stem}", type="CURVE")
+        curve_data = bpy.data.curves.new(
+            name=f"polyline-{csv_filepath.stem}", type="CURVE"
+        )
         curve_data.dimensions = "3D"
         curve_data.resolution_u = 2
 
@@ -167,7 +176,9 @@ def main():
 
         # Set the base color of the material
         principled_bsdf = material.node_tree.nodes.get("Principled BSDF")
-        principled_bsdf.inputs["Base Color"].default_value = tuple(colors_array[csv_i, :])
+        principled_bsdf.inputs["Base Color"].default_value = tuple(
+            colors_array[csv_i, :]
+        )
 
         # Assign the material to the curve object
         if curve_object.data.materials:
@@ -180,7 +191,6 @@ def main():
 
         # Disable shadow casting for the curves
         curve_object.display.show_shadows = False
-
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Add a camera at a specific position
@@ -204,7 +214,6 @@ def main():
     camera_object.rotation_mode = "QUATERNION"
     camera_object.rotation_quaternion = rot_quat @ z_rot_quat
 
-
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Render view from the camera with default camera settings
     # Set the camera as the active camera
@@ -213,17 +222,15 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     bpy.context.scene.render.image_settings.file_format = "PNG"
     bpy.context.scene.render.filepath = str(
-        data_dir / f"orthophoto_sfm_interp_WCS_3d_bestfit_plane_{timestamp}.png"
+        data_dir / f"orthophoto_{reference_trajectory_file}_{timestamp}.png"
     )
 
     # Set the resolution for orthophoto
     bpy.context.scene.render.resolution_x = 1920  # width
     bpy.context.scene.render.resolution_y = 1080  # height
-    bpy.context.scene.render.resolution_percentage = (
-        100  # (100% for full resolution)
-    )
+    bpy.context.scene.render.resolution_percentage = 100  # (100% for full resolution)
     # transparent background
-    bpy.context.scene.render.film_transparent = True  
+    bpy.context.scene.render.film_transparent = True
 
     # Render the scene
     bpy.ops.render.render(write_still=True)
