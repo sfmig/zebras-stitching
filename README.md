@@ -45,7 +45,7 @@ The notebooks are organized as follows:
 - `compute_orthophoto_blender.py`: is a script that is meant to be run using Blender's Python interpreter. It loads the OpenDroneMap generated mesh and the 3D trajectories of the animals into Blender, and generates a orthophoto of the scene with the virtual camera's z-axis parallel to the normal of the mesh best-fitting plane.
 
 ## OpenDroneMap pipeline
-We used OpenDroneMap's command-line interface ([ODM](https://github.com/OpenDroneMap/ODM)) to run the SfM pipeline and generate the mesh. We used the GPU-compatible docker image and ran the pipeline on the 314 keyframes of the video (one every 20 frames, plus the first and last frames). In each of the keyframes, we provided masks around the individual zebras to prevent those pixels from being used in the reconstruction. 
+We used OpenDroneMap's command-line interface ([ODM](https://github.com/OpenDroneMap/ODM)) to run the SfM pipeline and generate the mesh. We used the GPU-compatible docker image and ran the pipeline on the 314 keyframes of the video (one every 20 frames, plus the first and last frames). In each of the keyframes, we provided masks around the individual zebras to prevent those pixels from being used in the reconstruction. We computed these masks as padded bounding boxes around each zebra's keypoints.
 
 We use the default setting except for the following custom flags: `--dem-resolution 1.0 --orthophoto-resolution 1.0 --pc-quality high`
 
