@@ -1,5 +1,5 @@
 # zebras-stitching
-Exploring how to stitch zebra data
+Exploring how to stitch drone imagery and animal trajectories 🦓🦓🦓
 
 ## Installation
 
@@ -12,7 +12,7 @@ pip install -r requirements.txt
 ```
 
 
-## Notebooks
+## Overview
 
 This repository explores possible pipelines for "unwrapping" trajectories of moving animals recorded with a camera drone, using open-source freely available software and off-the-shelf models. We use "unwrapping" to refer to the process of transforming the trajectories of the animals from a moving image coordinate system to a world coordinate system that is fixed to the ground. As a proof-of-concept, we focus on its application to a single video of 44 zebras in escape behavior.
 
@@ -30,6 +30,8 @@ Once the trajectories of the animals are "unwrapped" (i.e., in the world coordin
 
 We use Blender to generate custom orthophotos of the scene and overlay the generated 3D trajectories of the animals.
 
+
+## Notebooks
 The notebooks are organized as follows:
 - `00_notebook_elastix_transforms.py`: extracts the transforms from the image registration algorithm for approach 1.
 - `01_notebook_elastix_unwrap_keypoints.py`: uses the transforms from notebook `00` to unwrap the input 2D trajectories (zebras or trees).
