@@ -45,13 +45,16 @@ approach_to_path = {  # paths are relative to data_dir
     "itk-all": (
         "approach-itk-all/20250325_2228_id_unwrapped_20250403_161408_clean.h5"
     ),
-    "sfm-pcs-2d": (
+    "sfm-interp": (
         "approach-sfm-interp/20250325_2228_id_sfm_interp_PCS_2d_20250516_155745_clean.h5" 
+    ),
+    "sfm-itk-interp": (
+        "approach-sfm-itk-interp/20250325_2228_id_sfm_itk_interp_PCS_2d_20250517_230807_clean.h5"
     ),
 }
 
 # Select which approach to use
-approach = "sfm-pcs-2d"  # can be either "itk-all" or "sfm-pcs-2d"
+approach = "sfm-interp"  # can be either "itk-all", "sfm-interp" or "sfm-itk-interp"
 file_path_relative = approach_to_path[approach]
 file_path = data_dir / Path(file_path_relative)
 assert file_path.exists()
