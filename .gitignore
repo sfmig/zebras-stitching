@@ -2,8 +2,5 @@
 *.jpg
 *.jpeg
 *.mp4
-videos/
-.venv
-build
-.ruff_cache
-.DS_Store
+# Include orthophoto with best-fit plane
+!data/orthophoto_*.png
