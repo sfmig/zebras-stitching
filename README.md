@@ -1,6 +1,11 @@
 # zebras-stitching
 Exploring how to stitch drone imagery and animal trajectories 🦓🦓🦓
 
+This repository contains supporting code for the [pre-print](https://arxiv.org/abs/2505.16882):
+> Duporge, I.\*, Miñano, S.\*, Sirmpilatze, N., Tatarnikov, I., Wolf, S., Tyson, A. L., & Rubenstein, D. (2025). _Tracking the Flight: Exploring a Computational Framework for Analyzing Escape Responses in Plains Zebra (Equus quagga)._ arXiv preprint arXiv:2505.16882. 
+
+(* denotes equal contribution).
+
 ## Installation
 
 From the root of the repository:
